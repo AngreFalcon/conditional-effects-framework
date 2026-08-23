@@ -11,34 +11,5 @@
 				"node": "neck"
 			}
 		]
-	},
-	"tailarmorarg": {
-		"conditions": [
-			{
-				"race": [ "argonian" ],
-				"equipment": {
-					"greaves": true
-				}
-			}
-		],
-		"effects": [
-			{
-				"mesh": "meshes/ConditionalEffectsFramework/Tail Armor Arg.nif",
-				"node": "tail"
-			}
-		]
-	},
-	"tailarmorkhajiit": {
-		"conditions": [
-			{
-				"race": [ "khajiit" ]
-			}
-		],
-		"effects": [
-			{
-				"mesh": "meshes/ConditionalEffectsFramework/Tail Armor Khajiit.nif",
-				"node": "tail"
-			}
-		]
 	}
 }
