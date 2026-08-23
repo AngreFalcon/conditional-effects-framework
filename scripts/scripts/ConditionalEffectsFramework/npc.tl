@@ -520,9 +520,9 @@ local CONDITIONS <const>: { { string, function(string, any) } } = {
 	},
 
 	{ "hasEffects",
-		function(_, effectIds: { string }): boolean
-			for _, effectId in ipairs(effectIds) do
-				if hasEffect(effectId) == false then
+		function(_, effectIds: { string: boolean }): boolean
+			for effectId, value in pairs(effectIds) do
+				if hasEffect(effectId) ~= value then
 					return false
 				end
 			end

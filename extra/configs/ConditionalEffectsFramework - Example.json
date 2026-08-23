@@ -43,7 +43,9 @@
 					}
 				},
 				"getRandom": { "chance": 10 },
-				"hasEffects": [ "example2" ]
+				"hasEffects": {
+					"example2": false
+				}
 			},
 			{
 				"race": [ "nord" ]

@@ -521,8 +521,8 @@ local CONDITIONS = {
 
    { "hasEffects",
    function(_, effectIds)
-      for _, effectId in ipairs(effectIds) do
-         if hasEffect(effectId) == false then
+      for effectId, value in pairs(effectIds) do
+         if hasEffect(effectId) ~= value then
             return false
          end
       end
