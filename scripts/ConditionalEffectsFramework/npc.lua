@@ -471,10 +471,10 @@ local CONDITIONS = {
       for k, v in pairs(equipment) do
          local equipped = types.Actor.getEquipment(this.object, EQUIP_SLOTS[string.lower(k)])
          local dataType = type(v)
-         if dataType == "boolean" and (equipped == nil and v == true) or (equipped ~= nil and v == false) or
+         if (dataType == "boolean" and v == (equipped == nil)) or
             equipped == nil or
             dataType == "string" and (equipped).recordId ~= (v) or
-            (dataType == "userdata" or dataType == "table") and #(v) < 1 or tableHasElement(v, equipped) == false then
+            dataType == "table" and tableHasElement(v, (equipped).recordId) == false then
             return false
          end
       end

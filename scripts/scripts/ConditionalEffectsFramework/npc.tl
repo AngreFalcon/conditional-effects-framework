@@ -471,10 +471,10 @@ local CONDITIONS <const>: { { string, function(string, any) } } = {
 			for k, v in pairs(equipment) do
 				local equipped = types.Actor.getEquipment(this.object, EQUIP_SLOTS[string.lower(k)])
 				local dataType = type(v)
-				if dataType == "boolean" and (equipped == nil and v == true) or (equipped ~= nil and v == false)
+				if (dataType == "boolean" and v == (equipped == nil))
 				or equipped == nil
 				or dataType == "string" and (equipped as core.GameObject).recordId ~= (v as string)
-				or (dataType == "userdata" or dataType == "table") and #(v as { string }) < 1 or tableHasElement(v as { string }, equipped) == false then
+				or dataType == "table" and tableHasElement(v as { string }, (equipped as core.GameObject).recordId) == false then
 					return false
 				end
 			end
