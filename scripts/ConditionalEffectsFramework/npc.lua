@@ -168,6 +168,15 @@ local distTable = {}
 
 
 
+local function tableHasElement(array, element)
+   for _, item in ipairs(array) do
+      if item == element then
+         return true
+      end
+   end
+   return false
+end
+
 local function compareRange(value, r, valueMax)
    if not r.percent then
       if ((r.min > r.max) and (value < r.min) and (value > r.max)) or ((value < r.min) or (value > r.max)) then
@@ -461,8 +470,11 @@ local CONDITIONS = {
    function(_, equipment)
       for k, v in pairs(equipment) do
          local equipped = types.Actor.getEquipment(this.object, EQUIP_SLOTS[string.lower(k)])
-         if type(v) == "boolean" and (equipped == nil and v == true) or (equipped ~= nil and v == false) or
-            type(v) == "string" and ((equipped == nil) or (equipped ~= nil and (equipped).recordId ~= (v))) then
+         local dataType = type(v)
+         if dataType == "boolean" and (equipped == nil and v == true) or (equipped ~= nil and v == false) or
+            equipped == nil or
+            dataType == "string" and (equipped).recordId ~= (v) or
+            (dataType == "userdata" or dataType == "table") and #(v) < 1 or tableHasElement(v, equipped) == false then
             return false
          end
       end

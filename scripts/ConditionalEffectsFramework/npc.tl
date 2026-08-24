@@ -168,6 +168,15 @@ local distTable: { string: DistributionTable } = {} -- effectId.spell/item = tru
 -- end variables
 
 -- functions
+local function tableHasElement(array: { any }, element: any): boolean
+	for _, item in ipairs(array) do
+		if item == element then
+			return true
+		end
+	end
+	return false
+end
+
 local function compareRange(value: number, r: CEFRange, valueMax?: number): boolean
 	if not r.percent then
 		if ((r.min > r.max) and (value < r.min) and (value > r.max)) or ((value < r.min) or (value > r.max)) then
@@ -461,8 +470,11 @@ local CONDITIONS <const>: { { string, function(string, any) } } = {
 		function(_, equipment: { string: boolean }): boolean
 			for k, v in pairs(equipment) do
 				local equipped = types.Actor.getEquipment(this.object, EQUIP_SLOTS[string.lower(k)])
-				if type(v) == "boolean" and (equipped == nil and v == true) or (equipped ~= nil and v == false)
-				or type(v) == "string" and ((equipped == nil) or (equipped ~= nil and (equipped as core.GameObject).recordId ~= (v as string))) then
+				local dataType = type(v)
+				if dataType == "boolean" and (equipped == nil and v == true) or (equipped ~= nil and v == false)
+				or equipped == nil
+				or dataType == "string" and (equipped as core.GameObject).recordId ~= (v as string)
+				or (dataType == "userdata" or dataType == "table") and #(v as { string }) < 1 or tableHasElement(v as { string }, equipped) == false then
 					return false
 				end
 			end
