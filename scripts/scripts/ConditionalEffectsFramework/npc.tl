@@ -472,9 +472,8 @@ local CONDITIONS <const>: { { string, function(string, any) } } = {
 				local equipped = types.Actor.getEquipment(this.object, EQUIP_SLOTS[string.lower(k)])
 				local dataType = type(v)
 				if (dataType == "boolean" and v == (equipped == nil))
-				or equipped == nil
-				or dataType == "string" and (equipped as core.GameObject).recordId ~= (v as string)
-				or dataType == "table" and tableHasElement(v as { string }, (equipped as core.GameObject).recordId) == false then
+				or dataType == "string" and equipped ~= nil and (equipped as core.GameObject).recordId ~= (v as string)
+				or dataType == "table" and equipped ~= nil and tableHasElement(v as { string }, (equipped as core.GameObject).recordId) == false then
 					return false
 				end
 			end
