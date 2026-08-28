@@ -472,8 +472,8 @@ local CONDITIONS = {
          local equipped = types.Actor.getEquipment(this.object, EQUIP_SLOTS[string.lower(k)])
          local dataType = type(v)
          if (dataType == "boolean" and v == (equipped == nil)) or
-            dataType == "string" and equipped ~= nil and (equipped).recordId ~= (v) or
-            dataType == "table" and equipped ~= nil and tableHasElement(v, (equipped).recordId) == false then
+            (dataType == "string" and (equipped == nil or (equipped).recordId ~= (v))) or
+            (dataType == "table" and (equipped == nil or tableHasElement(v, (equipped).recordId) == false)) then
             return false
          end
       end
