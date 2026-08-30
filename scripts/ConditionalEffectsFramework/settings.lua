@@ -1,4 +1,4 @@
-local _tl_compat; if (tonumber((_VERSION or ''):match('[%d.]*$')) or 0) < 5.3 then local p, m = pcall(require, 'compat53.module'); if p then _tl_compat = m end end; local pairs = _tl_compat and _tl_compat.pairs or pairs; local I = require('openmw.interfaces')
+local _tl_compat; if (tonumber((_VERSION or ''):match('[%d.]*$')) or 0) < 5.3 then local p, m = pcall(require, 'compat53.module'); if p then _tl_compat = m end end; local pairs = _tl_compat and _tl_compat.pairs or pairs; local table = _tl_compat and _tl_compat.table or table; local I = require('openmw.interfaces')
 local storage = require('openmw.storage')
 local core = require('openmw.core')
 
@@ -33,6 +33,13 @@ local function getToggleSettings()
    for fileName in pairs(cefConfigData) do
       settingsList[#settingsList + 1] = genConfigToggles(fileName)
    end
+   table.sort(settingsList, (function(first, second)
+      if first.name < second.name then
+         return true
+      else
+         return false
+      end
+   end))
    return settingsList
 end
 

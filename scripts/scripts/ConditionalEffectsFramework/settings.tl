@@ -33,6 +33,13 @@ local function getToggleSettings(): { I.Settings.SettingOptions }
     for fileName in pairs(cefConfigData as { string: any }) do
         settingsList[#settingsList + 1] = genConfigToggles(fileName)
     end
+    table.sort(settingsList, (function(first: I.Settings.SettingOptions, second: I.Settings.SettingOptions): boolean
+        if first.name < second.name then
+            return true
+        else
+            return false
+        end
+    end))
     return settingsList
 end
 
