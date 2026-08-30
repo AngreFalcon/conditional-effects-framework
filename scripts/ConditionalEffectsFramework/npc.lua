@@ -473,7 +473,7 @@ local CONDITIONS = {
          local dataType = type(v)
          if (dataType == "boolean" and v == (equipped == nil)) or
             (dataType ~= "boolean" and equipped == nil) or
-            (dataType == "string" and (equipped).recordId ~= (v)) or
+            (dataType == "string" and (equipped).recordId ~= string.lower(v)) or
             (dataType == "table" and tableHasElement(v, (equipped).recordId) == false) then
             return false
          end
