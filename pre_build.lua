@@ -5,6 +5,7 @@ local src = projDir .. "/scripts/scripts/ConditionalEffectsFramework"
 local dest = projDir .. "/scripts/ConditionalEffectsFramework"
 local fileNames = {}
 
+os.execute("rmdir /s \"" .. projDir .. "\\dist\\Conditional Effects Framework\"") -- delete current dist directory, removing all old build files
 for file in lfs.dir(dest) do -- Deletes all .lua files in build directory
 	if file ~= nil and file ~= "." and file ~= ".." then
 		if string.sub(file, -4) == ".lua" then

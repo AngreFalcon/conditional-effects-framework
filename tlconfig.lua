@@ -9,7 +9,7 @@ return {
 	scripts = {
 		build = {
 			pre = "pre_build.lua",
-			post = "post_build.lua"
+			post = "post_build.lua",
 		}
 	}
 }

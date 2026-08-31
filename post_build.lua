@@ -1,15 +1,17 @@
 local lfs = require("lfs")
 
 local projDir = lfs.currentdir()
+local dest = projDir .. "\\dist\\Conditional Effects Framework"
 local src = {
 	"scripts",
 	"meshes",
 	"textures",
 	"l10n",
 }
-local dest = projDir .. "\\dist\\Conditional Effects Framework"
+local plugins = {
+	"conditional_effects_framework.omwscripts",
+}
 
-os.execute("rmdir /s \"" .. dest .. "\"") -- delete current dist directory, removing all old build files
 os.execute("mkdir \"" .. dest .. "\"") -- create empty dist directory to store build files in for publication
 
 for _, dir in ipairs(src) do
@@ -23,4 +25,8 @@ for _, dir in ipairs(src) do
 	else
 		os.execute("xcopy /v /e \"" .. projDir .. "\\" .. dir .. "\" \"" .. dest .. "\\" .. dir .. "\"\\")
 	end
+end
+
+for _, plugin in ipairs(plugins) do
+	os.execute("echo F|xcopy /v \"" .. projDir .. "\\" .. plugin .. "\" \"" .. dest .. "\\" .. plugin .. "\"")
 end
