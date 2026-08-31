@@ -1,0 +1,88 @@
+local _tl_compat; if (tonumber((_VERSION or ''):match('[%d.]*$')) or 0) < 5.3 then local p, m = pcall(require, 'compat53.module'); if p then _tl_compat = m end end; local pairs = _tl_compat and _tl_compat.pairs or pairs; local table = _tl_compat and _tl_compat.table or table; local I = require('openmw.interfaces')
+local storage = require('openmw.storage')
+local core = require('openmw.core')
+
+local l10n = core.l10n("ConditionalEffectsFramework", "en")
+
+local cefConfigData = storage.globalSection("CEF_ConfigData"):asTable()
+local cafConfigs = {}
+for _, fileContents in pairs(cefConfigData) do
+   for configName in pairs(fileContents) do
+      cafConfigs[#cafConfigs + 1] = configName
+   end
+end
+
+local function genConfigToggles(fileName)
+   local settings = {}
+   settings.renderer = "multiselect"
+   settings.key = "configToggle" .. fileName
+   settings.name = (l10n("config_toggle_name")) .. fileName
+   settings.description = (l10n("config_toggle_desc")) .. fileName
+   settings.default = {}
+   settings.argument = {};
+   (settings.argument).keys = {}
+   for configName in pairs(cefConfigData[fileName]) do
+      (settings.default)[configName] = true;
+      (settings.argument).keys[#(settings.argument).keys + 1] = configName
+   end
+   return settings
+end
+
+local function getToggleSettings()
+   local settingsList = {}
+   for fileName in pairs(cefConfigData) do
+      settingsList[#settingsList + 1] = genConfigToggles(fileName)
+   end
+   table.sort(settingsList, (function(first, second)
+      if first.name < second.name then
+         return true
+      else
+         return false
+      end
+   end))
+   return settingsList
+end
+
+I.Settings.registerGroup({
+   key = 'SettingsConditionalEffectsFrameworkConfigs',
+   l10n = 'ConditionalEffectsFramework',
+   page = 'ConditionalEffectsFrameworkPage',
+   name = 'toggle_settings_group_name',
+   description = 'toggle_settings_group_desc',
+   permanentStorage = false,
+   settings = getToggleSettings(),
+})
+
+I.Settings.registerGroup({
+   key = 'SettingsGeneralConditionalEffectsFramework',
+   l10n = 'ConditionalEffectsFramework',
+   page = 'ConditionalEffectsFrameworkPage',
+   name = 'general_settings_group_name',
+   description = 'general_settings_group_desc',
+   permanentStorage = false,
+   settings = {
+      {
+         renderer = "checkbox",
+         key = "cefEnable",
+         name = "cef_enable_name",
+         description = "cef_enable_desc",
+         default = true,
+         argument = {
+            l10n = "ConditionalEffectsFramework",
+            trueLabel = "cef_enable_enabled",
+            falseLabel = "cef_enable_disabled",
+         },
+      },
+      {
+         renderer = "number",
+         key = "cefTickDelay",
+         name = "tick_rate_name",
+         description = "tick_rate_desc",
+         default = 0.2,
+         argument = {
+            min = 0.05,
+            max = 10,
+         },
+      },
+   },
+})

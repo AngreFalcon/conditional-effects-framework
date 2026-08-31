@@ -1,0 +1,15 @@
+{
+	"slavecollar": {
+		"conditions": [
+			{
+				"isSlave": true
+			}
+		],
+		"effects": [
+			{
+				"mesh": "meshes/ConditionalEffectsFramework/Slave Collar.nif",
+				"node": "neck"
+			}
+		]
+	}
+}

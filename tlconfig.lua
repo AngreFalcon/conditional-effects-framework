@@ -8,7 +8,8 @@ return {
     gen_target = '5.1',
 	scripts = {
 		build = {
-			pre = "pre_build.lua"
+			pre = "pre_build.lua",
+			post = "post_build.lua"
 		}
 	}
 }
