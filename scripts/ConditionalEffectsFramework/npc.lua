@@ -651,11 +651,6 @@ return {
          removeEffects()
       end,
       onActive = function()
-         if types.NPC.record(this.object).id == "safl_shies" then
-            for _, spell in ipairs(types.Actor.spells(this.object)) do
-               print((spell).id)
-            end
-         end
          configData = storage.globalSection("CEF_ConfigData")
          varsTable = storage.globalSection(this.object.id)
          configSettings = storage.globalSection("SettingsConditionalEffectsFrameworkConfigs")
