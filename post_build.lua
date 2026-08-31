@@ -30,3 +30,5 @@ end
 for _, plugin in ipairs(plugins) do
 	os.execute("echo F|xcopy /v \"" .. projDir .. "\\" .. plugin .. "\" \"" .. dest .. "\\" .. plugin .. "\"")
 end
+
+os.execute("7z a \"".. dest .. ".7z\" \"" .. dest .. "\\*\"")
