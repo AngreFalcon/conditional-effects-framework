@@ -615,6 +615,28 @@ local function checkNearby()
 	end
 end
 
+local function removeEffects()
+	if next(distTable) == nil then
+		return
+	end
+	for _, contents in pairs(configData:asTable() as { string: any }) do
+		for effectId, effect in pairs(contents as { string: CEFConfig }) do
+			if distTable[effectId] ~= nil then
+				if effect.effects ~= nil and distTable[effectId].effects ~= nil then
+					distTable[effectId].effects = nil
+				end
+				if effect.spells ~= nil and distTable[effectId].spells ~= nil then
+					undoSpellDistribution(effectId)
+				end
+				if effect.items ~= nil and distTable[effectId].items ~= nil then
+					undoItemDistribution(effectId)
+				end
+				distTable[effectId] = nil
+			end
+		end
+	end
+end
+
 return {
    	engineHandlers = {
 		onSave = function(): SaveData
@@ -625,7 +647,15 @@ return {
 		onLoad = function(saveData: SaveData)
 			distTable = saveData.distTable
 		end,
+		onInactive = function()
+			removeEffects()
+		end,
 		onActive = function()
+			if types.NPC.record(this.object).id == "safl_shies" then
+				for _, spell in ipairs(types.Actor.spells(this.object) as { any }) do
+					print((spell as core.Spell).id)
+				end
+			end
 			configData = storage.globalSection("CEF_ConfigData")
 			varsTable = storage.globalSection(this.object.id)
 			configSettings = storage.globalSection("SettingsConditionalEffectsFrameworkConfigs")
