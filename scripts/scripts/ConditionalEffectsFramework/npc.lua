@@ -72,6 +72,7 @@ local nearby = require('openmw.nearby')
 
 
 
+
 local DYNAMIC_STATS = {
    ["health"] = types.Actor.stats.dynamic.health,
    ["fatigue"] = types.Actor.stats.dynamic.fatigue,
@@ -156,6 +157,13 @@ local ITEM_INTERFACES = {
    types.Weapon.records,
 }
 
+local STATIC_CONDS = {
+   "charId",
+   "race",
+   "isMale",
+   "classes",
+}
+
 
 
 local realTime = core.getRealTime()
@@ -165,6 +173,7 @@ local varsTable
 local configSettings
 local settings
 local distTable = {}
+local effectWhitelist
 
 
 
@@ -305,20 +314,42 @@ local function applyItemDistribution(effectId, items)
    distTable[effectId].items = {}
    local actorInventory = types.Actor.inventory(this)
    for _, item in ipairs(items) do
-      if validateItemId(item.itemId) == false then
-         break
-      end
-      local inventoryCount = itemQuantity(item.itemId, actorInventory)
-      if item.remove == true and inventoryCount > 0 then
-         local removeQuantity = item.quantity
-         if item.quantity > inventoryCount then
-            removeQuantity = inventoryCount
+      local itemIdType = type(item.itemId)
+      if itemIdType == "string" then
+         if validateItemId(item.itemId) == false then
+            break
          end
-         distTable[effectId].items[#distTable[effectId].items + 1] = { itemId = item.itemId, remove = item.remove, quantity = removeQuantity }
-         removeItemFromActor(item.itemId, removeQuantity)
-      elseif item.remove == false then
-         addItemToActor(item.itemId, item.quantity)
-         distTable[effectId].items[#distTable[effectId].items + 1] = { itemId = item.itemId, remove = item.remove, quantity = item.quantity }
+         if item.remove == true and (item.random == nil or item.random == false) then
+            local inventoryCount = itemQuantity(item.itemId, actorInventory)
+            local removeQuantity = item.quantity
+            if item.quantity > inventoryCount then
+               removeQuantity = inventoryCount
+            end
+
+            distTable[effectId].items[#distTable[effectId].items + 1] = { itemId = item.itemId, remove = item.remove, quantity = removeQuantity }
+            removeItemFromActor(item.itemId, removeQuantity)
+         elseif item.remove == false then
+            addItemToActor(item.itemId, item.quantity)
+            distTable[effectId].items[#distTable[effectId].items + 1] = { itemId = item.itemId, remove = item.remove, quantity = item.quantity }
+         end
+      elseif itemIdType == "table" then
+         if #(item.itemId) > 0 then
+            local itemPool = {}
+            for _, v in ipairs(item.itemId) do
+               if validateItemId(v) == true then
+                  itemPool[#itemPool + 1] = v
+               end
+            end
+
+         else
+            local itemPool = {}
+            for k, v in pairs(item.itemId) do
+               if validateItemId(v) == true then
+                  itemPool[tonumber(k)] = v
+               end
+            end
+
+         end
       end
    end
 end
@@ -545,12 +576,14 @@ local CONDITIONS = {
 
 local function checkConditions(effectId, conditions)
    local result = true
+   local failedCond = {}
    for _, v1 in ipairs(conditions) do
       result = true
       for _, v2 in ipairs(CONDITIONS) do
          local condition = (v1)[v2[1]]
          if condition ~= nil and v2[2](effectId, condition) == false then
             result = false
+            failedCond[#failedCond + 1] = v2[1]
             break
          end
       end
@@ -558,18 +591,21 @@ local function checkConditions(effectId, conditions)
          return result
       end
    end
-   return result
+   return result, failedCond
 end
 
 local function checkEffectConditions(effectId, effect)
    if distTable[effectId] == nil then
       distTable[effectId] = {}
    end
-   if checkConditions(effectId, effect.conditions) == false then
+   local conditionResult = nil
+   local failedConditions = nil
+   conditionResult, failedConditions = checkConditions(effectId, effect.conditions)
+   if conditionResult == false then
       if effect.effects ~= nil and distTable[effectId].effects ~= nil then
          removeCosmetics(effectId)
       end
-      return
+      return failedConditions
    end
    if effect.effects ~= nil and distTable[effectId].effects == nil then
       applyCosmetics(effectId, effect.effects)
@@ -582,23 +618,44 @@ local function checkEffectConditions(effectId, effect)
    end
 end
 
-local function loopThroughEffects()
-   for fileName, contents in pairs(configData:asTable()) do
-      for effectId, effect in pairs(contents) do
-         if settings:asTable().cefEnable == true and ((configSettings:asTable()["configToggle" .. fileName])[effectId] == true) then
-            checkEffectConditions(effectId, effect)
-         elseif distTable[effectId] ~= nil then
-            if effect.effects ~= nil and distTable[effectId].effects ~= nil then
-               removeCosmetics(effectId)
+local function checkEffect(fileName, effectId, effect)
+   if settings:asTable().cefEnable == true and ((configSettings:asTable()["configToggle" .. fileName])[effectId] == true) then
+      local failedConditions = checkEffectConditions(effectId, effect)
+      if failedConditions ~= nil then
+         for _, condition in ipairs(failedConditions) do
+            if tableHasElement(STATIC_CONDS, condition) == false then
+               if effectWhitelist[fileName] == nil then
+                  effectWhitelist[fileName] = {}
+               end
+               effectWhitelist[fileName][effectId] = effect
             end
-            if effect.spells ~= nil and distTable[effectId].spells ~= nil then
-               undoSpellDistribution(effectId)
-            end
-            if effect.items ~= nil and distTable[effectId].items ~= nil then
-               undoItemDistribution(effectId)
-            end
-            distTable[effectId] = nil
          end
+      end
+   elseif distTable[effectId] ~= nil then
+      if effect.effects ~= nil and distTable[effectId].effects ~= nil then
+         removeCosmetics(effectId)
+      end
+      if effect.spells ~= nil and distTable[effectId].spells ~= nil then
+         undoSpellDistribution(effectId)
+      end
+      if effect.items ~= nil and distTable[effectId].items ~= nil then
+         undoItemDistribution(effectId)
+      end
+      distTable[effectId] = nil
+   end
+end
+
+local function loopThroughEffects()
+   local effectsTable
+   if effectWhitelist == nil then
+      effectsTable = configData:asTable()
+      effectWhitelist = {}
+   else
+      effectsTable = effectWhitelist
+   end
+   for fileName, contents in pairs(effectsTable) do
+      for effectId, effect in pairs(contents) do
+         checkEffect(fileName, effectId, effect)
       end
    end
 end

@@ -51,6 +51,7 @@ local interface CEFItem
 	itemId: string
 	quantity: number
 	remove: boolean
+	random: boolean
 end
 
 local interface CEFConfig
@@ -155,6 +156,13 @@ local ITEM_INTERFACES <const>: { { any } } = {
 	types.Repair.records,
 	types.Weapon.records,
 }
+
+local STATIC_CONDS <const>: { string } = {
+	"charId",
+	"race",
+	"isMale",
+	"classes",
+}
 -- end constants
 
 -- variables
@@ -165,6 +173,7 @@ local varsTable: storage.StorageSection
 local configSettings: storage.StorageSection
 local settings: storage.StorageSection
 local distTable: { string: DistributionTable } = {} -- effectId.spell/item = true/false
+local effectWhitelist: { string: { string: CEFConfig } }
 -- end variables
 
 -- functions
@@ -305,20 +314,42 @@ local function applyItemDistribution(effectId: string, items: { CEFItem })
 	distTable[effectId].items = {}
 	local actorInventory = types.Actor.inventory(this as core.GameObject)
 	for _, item in ipairs(items) do
-		if validateItemId(item.itemId) == false then
-			break
-		end
-		local inventoryCount = itemQuantity(item.itemId, actorInventory)
-		if item.remove == true and inventoryCount > 0 then
-			local removeQuantity: number = item.quantity
-			if item.quantity > inventoryCount then
-				removeQuantity = inventoryCount
+		local itemIdType = type(item.itemId)
+		if itemIdType == "string" then
+			if validateItemId(item.itemId) == false then
+				break
 			end
-			distTable[effectId].items[#distTable[effectId].items + 1] = { itemId = item.itemId, remove = item.remove, quantity = removeQuantity }
-			removeItemFromActor(item.itemId, removeQuantity)
-		elseif item.remove == false then
-			addItemToActor(item.itemId, item.quantity)
-			distTable[effectId].items[#distTable[effectId].items + 1] = { itemId = item.itemId, remove = item.remove, quantity = item.quantity }
+			if item.remove == true and (item.random == nil or item.random == false) then
+				local inventoryCount = itemQuantity(item.itemId, actorInventory)
+				local removeQuantity: number = item.quantity
+				if item.quantity > inventoryCount then
+					removeQuantity = inventoryCount
+				end
+
+				distTable[effectId].items[#distTable[effectId].items + 1] = { itemId = item.itemId, remove = item.remove, quantity = removeQuantity }
+				removeItemFromActor(item.itemId, removeQuantity)
+			elseif item.remove == false then
+				addItemToActor(item.itemId, item.quantity)
+				distTable[effectId].items[#distTable[effectId].items + 1] = { itemId = item.itemId, remove = item.remove, quantity = item.quantity }
+			end
+		elseif itemIdType == "table" then
+			if #(item.itemId as { any }) > 0 then -- itemId is a list of items
+				local itemPool: { string } = {}
+				for _, v in ipairs(item.itemId as { string }) do
+					if validateItemId(v) == true then
+						itemPool[#itemPool + 1] = v
+					end
+				end
+			
+			else -- itemId is a table of items, whose keys should be numerical and represent the random chance of that particular item being selected from the item pool
+				local itemPool: { number: string } = {}
+				for k, v in pairs(item.itemId as { string: string }) do
+					if validateItemId(v) == true then
+						itemPool[tonumber(k)] = v
+					end
+				end
+
+			end
 		end
 	end
 end
@@ -543,14 +574,16 @@ local CONDITIONS <const>: { { string, function(string, any) } } = {
 	},
 }
 
-local function checkConditions(effectId: string, conditions: { CEFCondition }): boolean
+local function checkConditions(effectId: string, conditions: { CEFCondition }): boolean, { string }
 	local result: boolean = true
+	local failedCond: { string } = {}
 	for _, v1 in ipairs(conditions) do
 		result = true
 		for _, v2 in ipairs(CONDITIONS) do
 			local condition = (v1 as { string: any })[v2[1]]
 			if condition ~= nil and v2[2](effectId, condition) == false then
 				result = false
+				failedCond[#failedCond + 1] = v2[1]
 				break
 			end
 		end
@@ -558,18 +591,21 @@ local function checkConditions(effectId: string, conditions: { CEFCondition }): 
 			return result
 		end
 	end
-	return result
+	return result, failedCond
 end
 
-local function checkEffectConditions(effectId: string, effect: CEFConfig)
+local function checkEffectConditions(effectId: string, effect: CEFConfig): { string }
 	if distTable[effectId] == nil then
 		distTable[effectId] = {}
 	end
-	if checkConditions(effectId, effect.conditions) == false then
+	local conditionResult: boolean = nil
+	local failedConditions: { string } = nil
+	conditionResult, failedConditions = checkConditions(effectId, effect.conditions)
+	if conditionResult == false then
 		if effect.effects ~= nil and distTable[effectId].effects ~= nil then
 			removeCosmetics(effectId)
 		end
-		return
+		return failedConditions
 	end
 	if effect.effects ~= nil and distTable[effectId].effects == nil then
 		applyCosmetics(effectId, effect.effects)
@@ -582,23 +618,44 @@ local function checkEffectConditions(effectId: string, effect: CEFConfig)
 	end
 end
 
-local function loopThroughEffects()
-	for fileName, contents in pairs(configData:asTable() as { string: any }) do
-		for effectId, effect in pairs(contents as { string: CEFConfig }) do
-			if settings:asTable().cefEnable == true and ((configSettings:asTable()["configToggle" .. fileName] as { string: boolean })[effectId] == true) then
-				checkEffectConditions(effectId, effect)
-			elseif distTable[effectId] ~= nil then
-				if effect.effects ~= nil and distTable[effectId].effects ~= nil then
-					removeCosmetics(effectId)
+local function checkEffect(fileName: string, effectId: string, effect: CEFConfig)
+	if settings:asTable().cefEnable == true and ((configSettings:asTable()["configToggle" .. fileName] as { string: boolean })[effectId] == true) then
+		local failedConditions: { string } = checkEffectConditions(effectId, effect)
+		if failedConditions ~= nil then
+			for _, condition in ipairs(failedConditions) do
+				if tableHasElement(STATIC_CONDS, condition) == false then
+					if effectWhitelist[fileName] == nil then
+						effectWhitelist[fileName] = {}
+					end
+					effectWhitelist[fileName][effectId] = effect
 				end
-				if effect.spells ~= nil and distTable[effectId].spells ~= nil then
-					undoSpellDistribution(effectId)
-				end
-				if effect.items ~= nil and distTable[effectId].items ~= nil then
-					undoItemDistribution(effectId)
-				end
-				distTable[effectId] = nil
 			end
+		end
+	elseif distTable[effectId] ~= nil then
+		if effect.effects ~= nil and distTable[effectId].effects ~= nil then
+			removeCosmetics(effectId)
+		end
+		if effect.spells ~= nil and distTable[effectId].spells ~= nil then
+			undoSpellDistribution(effectId)
+		end
+		if effect.items ~= nil and distTable[effectId].items ~= nil then
+			undoItemDistribution(effectId)
+		end
+		distTable[effectId] = nil
+	end
+end
+
+local function loopThroughEffects()
+	local effectsTable: { string: { string: CEFConfig } }
+	if effectWhitelist == nil then
+		effectsTable = configData:asTable() as { string: { string: CEFConfig } }
+		effectWhitelist = {}
+	else
+		effectsTable = effectWhitelist
+	end
+	for fileName, contents in pairs(effectsTable) do
+		for effectId, effect in pairs(contents as { string: CEFConfig }) do
+			checkEffect(fileName, effectId, effect)
 		end
 	end
 end
