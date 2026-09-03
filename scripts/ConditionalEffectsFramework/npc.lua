@@ -267,7 +267,6 @@ local function applyItemDistribution(fileName, effectId, items)
             if item.quantity > inventoryCount then
                removeQuantity = inventoryCount
             end
-
             distTable[fileName .. effectId].items[#distTable[fileName .. effectId].items + 1] = { itemId = item.itemId, remove = item.remove, quantity = removeQuantity }
             removeItemFromActor(item.itemId, removeQuantity)
          elseif item.remove == false then
@@ -612,13 +611,6 @@ local function removeEffects()
             if effect.effects ~= nil and distTable[fileName .. effectId].effects ~= nil then
                distTable[fileName .. effectId].effects = nil
             end
-            if effect.spells ~= nil and distTable[fileName .. effectId].spells ~= nil then
-               undoSpellDistribution(fileName, effectId)
-            end
-            if effect.items ~= nil and distTable[fileName .. effectId].items ~= nil then
-               undoItemDistribution(fileName, effectId)
-            end
-            distTable[fileName .. effectId] = nil
          end
       end
    end
