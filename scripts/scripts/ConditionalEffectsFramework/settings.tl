@@ -12,19 +12,40 @@ for _, fileContents in pairs(cefConfigData) do
     end
 end
 
+local function capitalizeText(text: string): string
+    local capitalizedText: string = ""
+    local i: integer = 1
+    capitalizedText = text:sub(i, i):upper()
+	i = i + 1
+    while i <= #text do
+        local j = text:find(" ", i)
+        if j ~= nil then
+            capitalizedText = capitalizedText .. text:sub(i, j) .. text:sub(j + 1, j + 1):upper()
+            i = j + 2
+		else
+			break
+        end
+    end
+	capitalizedText = capitalizedText .. text:sub(i, #text)
+    return capitalizedText
+end
+
 local function genConfigToggles(fileName: string): I.Settings.SettingOptions
     local settings: I.Settings.SettingOptions = {}
     settings.renderer = "multiselect"
     settings.key = "configToggle" .. fileName
-    settings.name = (l10n("config_toggle_name") as string) .. fileName
-    settings.description = (l10n("config_toggle_desc") as string) .. fileName
+    settings.name = (l10n("config_toggle_name") as string) .. capitalizeText(fileName)
+    settings.description = (l10n("config_toggle_desc") as string) .. capitalizeText(fileName)
     settings.default = {}
     settings.argument = {}
     (settings.argument as { string: any }).keys = {}
+    (settings.argument as { string: any }).aliases = {}
     for configName in pairs(cefConfigData[fileName] as { string: any }) do
         (settings.default as { string: boolean })[configName] = true
         (settings.argument as { string: { string } }).keys[#(settings.argument as { string: { string } }).keys + 1] = configName
+        (settings.argument as { string: { string: string } }).aliases[configName] = capitalizeText(configName)
     end
+    (settings.argument as { string: number }).buttonWidth = 120
     return settings
 end
 
@@ -68,7 +89,7 @@ I.Settings.registerGroup {
 			key = "cefTickDelay",
 			name = "tick_rate_name",
 			description = "tick_rate_desc",
-			default = 0.2,
+			default = 0.5,
 			argument = {
 				min = 0.05,
 				max = 10,
@@ -91,7 +112,7 @@ I.Settings.registerGroup {
 			key = "cefMenuTickDelay",
 			name = "menu_tick_rate_name",
 			description = "menu_tick_rate_desc",
-			default = 0.5,
+			default = 1.0,
 			argument = {
 				min = 0.05,
 				max = 10,

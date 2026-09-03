@@ -202,15 +202,6 @@ local function compareRange(value, r, valueMax)
    return true
 end
 
-local function hasEffect(effectId)
-   for appliedEffect, effect in pairs(distTable) do
-      if effectId == appliedEffect and effect ~= nil then
-         return true
-      end
-   end
-   return false
-end
-
 local function hasSpell(spellId, spellList)
    for _, spell in ipairs(spellList) do
       if spell.id == spellId then
@@ -256,14 +247,14 @@ local function removeItemFromActor(itemId, quantity)
    core.sendGlobalEvent("removeItem", { actor = this.object, itemId = itemId, quantity = quantity })
 end
 
-local function applyCosmetics(effectId, effects)
-   distTable[effectId].effects = {}
+local function applyCosmetics(fileName, effectId, effects)
+   distTable[fileName .. effectId].effects = {}
    for _, effectData in ipairs(effects) do
-      local vfxId = effectId .. effectData.mesh
+      local vfxId = fileName .. effectId .. effectData.mesh
       if vfxId == nil or anim.hasBone(this.object, effectData.node) == false then
          return
       end
-      distTable[effectId].effects[#distTable[effectId].effects + 1] = vfxId
+      distTable[fileName .. effectId].effects[#distTable[fileName .. effectId].effects + 1] = vfxId
       anim.addVfx(this, effectData.mesh, {
          loop = true,
          boneName = effectData.node,
@@ -273,15 +264,15 @@ local function applyCosmetics(effectId, effects)
    end
 end
 
-local function removeCosmetics(effectId)
-   for _, vfxId in ipairs(distTable[effectId].effects) do
+local function removeCosmetics(fileName, effectId)
+   for _, vfxId in ipairs(distTable[fileName .. effectId].effects) do
       anim.removeVfx(this, vfxId)
    end
-   distTable[effectId].effects = nil
+   distTable[fileName .. effectId].effects = nil
 end
 
-local function applySpellDistribution(effectId, spells)
-   distTable[effectId].spells = {}
+local function applySpellDistribution(fileName, effectId, spells)
+   distTable[fileName .. effectId].spells = {}
    local actorSpells = types.Actor.spells(this)
    for _, spell in ipairs(spells) do
       local foundSpell = findSpellByID(spell.spellId)
@@ -289,29 +280,29 @@ local function applySpellDistribution(effectId, spells)
          break
       end
       if spell.remove == true and hasSpell(spell.spellId, actorSpells) == true then
-         distTable[effectId].spells[#distTable[effectId].spells + 1] = { spellId = spell.spellId, remove = spell.remove };
+         distTable[fileName .. effectId].spells[#distTable[fileName .. effectId].spells + 1] = { spellId = spell.spellId, remove = spell.remove };
          (actorSpells):remove(foundSpell)
       elseif spell.remove == false and hasSpell(spell.spellId, actorSpells) == false then
-         distTable[effectId].spells[#distTable[effectId].spells + 1] = { spellId = spell.spellId, remove = spell.remove };
+         distTable[fileName .. effectId].spells[#distTable[fileName .. effectId].spells + 1] = { spellId = spell.spellId, remove = spell.remove };
          (actorSpells):add(foundSpell)
       end
    end
 end
 
-local function undoSpellDistribution(effectId)
+local function undoSpellDistribution(fileName, effectId)
    local actorSpells = types.Actor.spells(this)
-   for _, spell in ipairs(distTable[effectId].spells) do
+   for _, spell in ipairs(distTable[fileName .. effectId].spells) do
       if spell.remove == true then
          (actorSpells):add(spell.spellId)
       else
          (actorSpells):remove(spell.spellId)
       end
    end
-   distTable[effectId].spells = nil
+   distTable[fileName .. effectId].spells = nil
 end
 
-local function applyItemDistribution(effectId, items)
-   distTable[effectId].items = {}
+local function applyItemDistribution(fileName, effectId, items)
+   distTable[fileName .. effectId].items = {}
    local actorInventory = types.Actor.inventory(this)
    for _, item in ipairs(items) do
       local itemIdType = type(item.itemId)
@@ -326,11 +317,11 @@ local function applyItemDistribution(effectId, items)
                removeQuantity = inventoryCount
             end
 
-            distTable[effectId].items[#distTable[effectId].items + 1] = { itemId = item.itemId, remove = item.remove, quantity = removeQuantity }
+            distTable[fileName .. effectId].items[#distTable[fileName .. effectId].items + 1] = { itemId = item.itemId, remove = item.remove, quantity = removeQuantity }
             removeItemFromActor(item.itemId, removeQuantity)
          elseif item.remove == false then
             addItemToActor(item.itemId, item.quantity)
-            distTable[effectId].items[#distTable[effectId].items + 1] = { itemId = item.itemId, remove = item.remove, quantity = item.quantity }
+            distTable[fileName .. effectId].items[#distTable[fileName .. effectId].items + 1] = { itemId = item.itemId, remove = item.remove, quantity = item.quantity }
          end
       elseif itemIdType == "table" then
          if #(item.itemId) > 0 then
@@ -354,9 +345,9 @@ local function applyItemDistribution(effectId, items)
    end
 end
 
-local function undoItemDistribution(effectId)
+local function undoItemDistribution(fileName, effectId)
    local actorInventory = types.Actor.inventory(this)
-   for _, item in ipairs(distTable[effectId].items) do
+   for _, item in ipairs(distTable[fileName .. effectId].items) do
       if item.remove == true then
          addItemToActor(item.itemId, item.quantity)
       else
@@ -367,7 +358,7 @@ local function undoItemDistribution(effectId)
          removeItemFromActor(item.itemId, removeQuantity)
       end
    end
-   distTable[effectId].items = nil
+   distTable[fileName .. effectId].items = nil
 end
 
 local CONDITIONS = {
@@ -563,10 +554,12 @@ local CONDITIONS = {
    },
 
    { "hasEffects",
-   function(_, effectIds)
-      for effectId, value in pairs(effectIds) do
-         if hasEffect(effectId) ~= value then
-            return false
+   function(_, fileEffects)
+      for fileName, effects in pairs(fileEffects) do
+         for effectId, value in pairs(effects) do
+            if (distTable[fileName .. effectId] == nil) == value then
+               return false
+            end
          end
       end
       return true
@@ -594,54 +587,62 @@ local function checkConditions(effectId, conditions)
    return result, failedCond
 end
 
-local function checkEffectConditions(effectId, effect)
-   if distTable[effectId] == nil then
-      distTable[effectId] = {}
+local function checkEffectConditions(fileName, effectId, effect)
+   if distTable[fileName .. effectId] == nil then
+      distTable[fileName .. effectId] = {}
+   end
+   if fileName == "barbs and tapers" and types.NPC.record(this.object).id == "bat_slut" then
+      print(effectId)
    end
    local conditionResult = nil
    local failedConditions = nil
    conditionResult, failedConditions = checkConditions(effectId, effect.conditions)
    if conditionResult == false then
-      if effect.effects ~= nil and distTable[effectId].effects ~= nil then
-         removeCosmetics(effectId)
+      if fileName == "barbs and tapers" and types.NPC.record(this.object).id == "bat_slut" and effectId == "sheath" then
+         print("test2")
+      end
+      if effect.effects ~= nil and distTable[fileName .. effectId].effects ~= nil then
+         removeCosmetics(fileName, effectId)
       end
       return failedConditions
    end
-   if effect.effects ~= nil and distTable[effectId].effects == nil then
-      applyCosmetics(effectId, effect.effects)
+   if effect.effects ~= nil and distTable[fileName .. effectId].effects == nil then
+      applyCosmetics(fileName, effectId, effect.effects)
    end
-   if effect.spells ~= nil and distTable[effectId].spells == nil then
-      applySpellDistribution(effectId, effect.spells)
+   if effect.spells ~= nil and distTable[fileName .. effectId].spells == nil then
+      applySpellDistribution(fileName, effectId, effect.spells)
    end
-   if effect.items ~= nil and distTable[effectId].items == nil then
-      applyItemDistribution(effectId, effect.items)
+   if effect.items ~= nil and distTable[fileName .. effectId].items == nil then
+      applyItemDistribution(fileName, effectId, effect.items)
    end
 end
 
 local function checkEffect(fileName, effectId, effect)
    if settings:asTable().cefEnable == true and ((configSettings:asTable()["configToggle" .. fileName])[effectId] == true) then
-      local failedConditions = checkEffectConditions(effectId, effect)
+      local failedConditions = checkEffectConditions(fileName, effectId, effect)
+      if effectWhitelist[fileName] == nil then
+         effectWhitelist[fileName] = {}
+      end
       if failedConditions ~= nil then
          for _, condition in ipairs(failedConditions) do
             if tableHasElement(STATIC_CONDS, condition) == false then
-               if effectWhitelist[fileName] == nil then
-                  effectWhitelist[fileName] = {}
-               end
                effectWhitelist[fileName][effectId] = effect
             end
          end
+      else
+         effectWhitelist[fileName][effectId] = effect
       end
-   elseif distTable[effectId] ~= nil then
-      if effect.effects ~= nil and distTable[effectId].effects ~= nil then
-         removeCosmetics(effectId)
+   elseif distTable[fileName .. effectId] ~= nil then
+      if effect.effects ~= nil and distTable[fileName .. effectId].effects ~= nil then
+         removeCosmetics(fileName, effectId)
       end
-      if effect.spells ~= nil and distTable[effectId].spells ~= nil then
-         undoSpellDistribution(effectId)
+      if effect.spells ~= nil and distTable[fileName .. effectId].spells ~= nil then
+         undoSpellDistribution(fileName, effectId)
       end
-      if effect.items ~= nil and distTable[effectId].items ~= nil then
-         undoItemDistribution(effectId)
+      if effect.items ~= nil and distTable[fileName .. effectId].items ~= nil then
+         undoItemDistribution(fileName, effectId)
       end
-      distTable[effectId] = nil
+      distTable[fileName .. effectId] = nil
    end
 end
 
@@ -676,19 +677,19 @@ local function removeEffects()
    if next(distTable) == nil then
       return
    end
-   for _, contents in pairs(configData:asTable()) do
+   for fileName, contents in pairs(configData:asTable()) do
       for effectId, effect in pairs(contents) do
-         if distTable[effectId] ~= nil then
-            if effect.effects ~= nil and distTable[effectId].effects ~= nil then
-               distTable[effectId].effects = nil
+         if distTable[fileName .. effectId] ~= nil then
+            if effect.effects ~= nil and distTable[fileName .. effectId].effects ~= nil then
+               distTable[fileName .. effectId].effects = nil
             end
-            if effect.spells ~= nil and distTable[effectId].spells ~= nil then
-               undoSpellDistribution(effectId)
+            if effect.spells ~= nil and distTable[fileName .. effectId].spells ~= nil then
+               undoSpellDistribution(fileName, effectId)
             end
-            if effect.items ~= nil and distTable[effectId].items ~= nil then
-               undoItemDistribution(effectId)
+            if effect.items ~= nil and distTable[fileName .. effectId].items ~= nil then
+               undoItemDistribution(fileName, effectId)
             end
-            distTable[effectId] = nil
+            distTable[fileName .. effectId] = nil
          end
       end
    end
