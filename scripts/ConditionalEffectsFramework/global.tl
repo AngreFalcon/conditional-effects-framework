@@ -6,6 +6,21 @@ local time = require('openmw_aux.time')
 local json = require('scripts.lib.json')
 local types = require('openmw.types')
 
+local ITEM_INTERFACES <const>: { { any } } = {
+	types.Apparatus.records,
+	types.Armor.records,
+	types.Book.records,
+	types.Clothing.records,
+	types.Ingredient.records,
+	types.Light.records,
+	types.Lockpick.records,
+	types.Miscellaneous.records,
+	types.Potion.records,
+	types.Probe.records,
+	types.Repair.records,
+	types.Weapon.records,
+}
+
 local timerDelay <const>: number = (0.1 * time.second)
 local realTime: number = core.getRealTime()
 local elapsedTime: number = 0
@@ -51,6 +66,66 @@ local function storeConfigFiles(parsedConfigData: { string: any })
 	end
 end
 
+local function findSpellByID(spellId: string): core.Spell
+	local foundSpell: core.Spell = nil
+	for _, spell in ipairs(core.magic.spells.records) do
+		if spell.id == spellId then
+			foundSpell = spell
+			break
+		end
+	end
+	return foundSpell
+end
+
+local function validateItemId(itemId: string): boolean
+	for _, itemRecords in ipairs(ITEM_INTERFACES) do
+		if (itemRecords as { string: any })[itemId] ~= nil then
+			return true
+		end
+	end
+	return false
+end
+
+local function validateEffectIDs()
+	local configData = storage.globalSection("CEF_ConfigData")
+	for fileName, contents in pairs(configData:asTable() as { string: { string: any } }) do
+		for effectId, effect in pairs(contents as { string: { string: any } }) do
+			if effect.spells ~= nil then
+				for _, spell in ipairs(effect.spells as { { string: string } }) do
+					local foundSpell = findSpellByID(spell.spellId)
+					if foundSpell == nil then
+						print("Spell could not be found by ID: " .. spell.spellId .. " in file: " .. fileName .. " for effect: " .. effectId)
+					end
+				end
+			end
+			if effect.items ~= nil then
+				for _, item in ipairs(effect.items as { { string: string } }) do
+					local itemIdType = type(item.itemId)
+					if itemIdType == "string" then
+						if validateItemId(item.itemId) == false then
+							print("Item could not be found by ID: " .. item.itemId .. " in file: " .. fileName .. " for effect: " .. effectId)
+						end
+					elseif itemIdType == "table" then
+						if #item.itemId > 0 then
+							for _, v in ipairs(item.itemId as { string }) do
+								if v ~= "nil" and validateItemId(v) == false then
+									print("Item could not be found by ID: " .. v .. " in file: " .. fileName .. " for effect: " .. effectId)
+								end
+							end
+						else
+							for _, v in pairs(item.itemId as { string: string }) do
+								if v ~= "nil" and validateItemId(v) == false then
+									print("Item could not be found by ID: " .. v .. " in file: " .. fileName .. " for effect: " .. effectId)
+								end
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+end
+
 local interface ItemData
 	actor: core.GameObject
 	itemId: string
@@ -63,6 +138,7 @@ return {
 			local configData = loadConfigFiles()
 			local parsedConfigData = parseConfigFiles(configData)
 			storeConfigFiles(parsedConfigData)
+			validateEffectIDs()
 		end,
       	onActorActive = function(actor: core.GameObject)
 			syncMWVars(actor)

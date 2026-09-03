@@ -141,21 +141,6 @@ local EQUIP_SLOTS <const>: { string: number } = {
 	["carriedleft"] = 17,
 	["ammunition"] = 18,
 }
-
-local ITEM_INTERFACES <const>: { { any } } = {
-	types.Apparatus.records,
-	types.Armor.records,
-	types.Book.records,
-	types.Clothing.records,
-	types.Ingredient.records,
-	types.Light.records,
-	types.Lockpick.records,
-	types.Miscellaneous.records,
-	types.Potion.records,
-	types.Probe.records,
-	types.Repair.records,
-	types.Weapon.records,
-}
 -- end constants
 
 -- variables
@@ -198,26 +183,6 @@ end
 local function hasSpell(spellId: string, spellList: { core.Spell }): boolean
 	for _, spell in ipairs(spellList) do
 		if spell.id == spellId then
-			return true
-		end
-	end
-	return false
-end
-
-local function findSpellByID(spellId: string): core.Spell
-	local foundSpell: core.Spell = nil
-	for _, spell in ipairs(core.magic.spells.records) do
-		if spell.id == spellId then
-			foundSpell = spell
-			break
-		end
-	end
-	return foundSpell
-end
-
-local function validateItemId(itemId: string): boolean
-	for _, itemRecords in ipairs(ITEM_INTERFACES) do
-		if (itemRecords as { string: any })[itemId] ~= nil then
 			return true
 		end
 	end
@@ -268,16 +233,12 @@ local function applySpellDistribution(fileName: string, effectId: string, spells
 	distTable[fileName .. effectId].spells = {}
 	local actorSpells = types.Actor.spells(this as core.GameObject) as { core.Spell }
 	for _, spell in ipairs(spells) do
-		local foundSpell = findSpellByID(spell.spellId)
-		if foundSpell == nil then
-			break
-		end
 		if spell.remove == true and hasSpell(spell.spellId, actorSpells) == true then
 			distTable[fileName .. effectId].spells[#distTable[fileName .. effectId].spells + 1] = { spellId = spell.spellId, remove = spell.remove }
-			(actorSpells as types.ActorSpells):remove(foundSpell)
+			(actorSpells as types.ActorSpells):remove(spell.spellId)
 		elseif spell.remove == false and hasSpell(spell.spellId, actorSpells) == false then
 			distTable[fileName .. effectId].spells[#distTable[fileName .. effectId].spells + 1] = { spellId = spell.spellId, remove = spell.remove }
-			(actorSpells as types.ActorSpells):add(foundSpell)
+			(actorSpells as types.ActorSpells):add(spell.spellId)
 		end
 	end
 end
@@ -300,9 +261,6 @@ local function applyItemDistribution(fileName: string, effectId: string, items: 
 	for _, item in ipairs(items) do
 		local itemIdType = type(item.itemId)
 		if itemIdType == "string" then
-			if validateItemId(item.itemId) == false then
-				break
-			end
 			if item.remove == true and (item.random == nil or item.random == false) then
 				local inventoryCount = itemQuantity(item.itemId, actorInventory)
 				local removeQuantity: number = item.quantity
@@ -318,20 +276,8 @@ local function applyItemDistribution(fileName: string, effectId: string, items: 
 			end
 		elseif itemIdType == "table" then
 			if #(item.itemId as { any }) > 0 then -- itemId is a list of items
-				local itemPool: { string } = {}
-				for _, v in ipairs(item.itemId as { string }) do
-					if validateItemId(v) == true then
-						itemPool[#itemPool + 1] = v
-					end
-				end
 			
 			else -- itemId is a table of items, whose keys should be numerical and represent the random chance of that particular item being selected from the item pool
-				local itemPool: { number: string } = {}
-				for k, v in pairs(item.itemId as { string: string }) do
-					if validateItemId(v) == true then
-						itemPool[tonumber(k)] = v
-					end
-				end
 
 			end
 		end
