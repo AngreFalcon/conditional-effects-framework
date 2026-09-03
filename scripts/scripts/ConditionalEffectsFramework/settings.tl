@@ -91,7 +91,7 @@ I.Settings.registerGroup {
 			key = "cefMenuTickDelay",
 			name = "menu_tick_rate_name",
 			description = "menu_tick_rate_desc",
-			default = 0.2,
+			default = 0.5,
 			argument = {
 				min = 0.05,
 				max = 10,
