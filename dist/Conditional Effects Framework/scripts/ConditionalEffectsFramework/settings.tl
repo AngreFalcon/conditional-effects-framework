@@ -108,4 +108,5 @@ I.Settings.registerGroup {
     description = 'toggle_settings_group_desc',
     permanentStorage = false,
     settings = getToggleSettings(),
+    order = 10,
 }
