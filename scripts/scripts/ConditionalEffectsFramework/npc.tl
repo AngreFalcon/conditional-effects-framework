@@ -715,7 +715,7 @@ return {
 			time.runRepeatedly(checkNearby, (settings:asTable().cefTickDelay as number), {})
 		end,
 		onUpdate = function()
-			if core.isWorldPaused() and((realTime - elapsedTime) >= (settings:asTable().cefTickDelay as number)) then
+			if core.isWorldPaused() and settings:asTable().cefEnableMenuUpdates == true and ((realTime - elapsedTime) >= (settings:asTable().cefMenuTickDelay as number)) then
 				checkNearby()
 				elapsedTime = realTime
 			end

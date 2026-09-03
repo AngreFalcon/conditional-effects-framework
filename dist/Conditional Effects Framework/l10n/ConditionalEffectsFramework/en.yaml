@@ -17,3 +17,11 @@ cef_enable_disabled: CEF Disabled
 
 tick_rate_name: Tick Rate
 tick_rate_desc: The tick rate in seconds for Conditional Effects Framework. Lower values may affect performance in NPC-heavy areas.
+
+cef_enable_menu_updates_name: Menu Updates Toggle
+cef_enable_menu_updates_desc: Enables or disables updates for Conditional Effects Framework while menus are open.
+cef_enable_menu_updates_enabled: Menu Updates Enabled
+cef_enable_menu_updates_disabled: Menu Updates Disabled
+
+tick_rate_name: Menu Tick Rate
+tick_rate_desc: The tick rate in seconds for Conditional Effects Framework while a menu is open. Lower values may affect performance in NPC-heavy areas.

@@ -44,16 +44,6 @@ local function getToggleSettings(): { I.Settings.SettingOptions }
 end
 
 I.Settings.registerGroup {
-    key = 'SettingsConditionalEffectsFrameworkConfigs',
-    l10n = 'ConditionalEffectsFramework',
-    page = 'ConditionalEffectsFrameworkPage',
-    name = 'toggle_settings_group_name',
-    description = 'toggle_settings_group_desc',
-    permanentStorage = false,
-    settings = getToggleSettings(),
-}
-
-I.Settings.registerGroup {
     key = 'SettingsGeneralConditionalEffectsFramework',
     l10n = 'ConditionalEffectsFramework',
     page = 'ConditionalEffectsFrameworkPage',
@@ -84,5 +74,38 @@ I.Settings.registerGroup {
 				max = 10,
 			},
 		},
+        {
+            renderer = "checkbox",
+            key = "cefEnableMenuUpdates",
+            name = "cef_enable_menu_updates_name",
+            description = "cef_enable_menu_updates_desc",
+            default = true,
+            argument = {
+                l10n = "ConditionalEffectsFramework",
+                trueLabel = "cef_enable_menu_updates_enabled",
+                falseLabel = "cef_enable_menu_updates_disabled",
+            }
+        },
+		{
+			renderer = "number",
+			key = "cefMenuTickDelay",
+			name = "menu_tick_rate_name",
+			description = "menu_tick_rate_desc",
+			default = 0.2,
+			argument = {
+				min = 0.05,
+				max = 10,
+			},
+		},
 	} as {I.Settings.SettingOptions},
+}
+
+I.Settings.registerGroup {
+    key = 'SettingsConditionalEffectsFrameworkConfigs',
+    l10n = 'ConditionalEffectsFramework',
+    page = 'ConditionalEffectsFrameworkPage',
+    name = 'toggle_settings_group_name',
+    description = 'toggle_settings_group_desc',
+    permanentStorage = false,
+    settings = getToggleSettings(),
 }
