@@ -156,13 +156,6 @@ local ITEM_INTERFACES <const>: { { any } } = {
 	types.Repair.records,
 	types.Weapon.records,
 }
-
-local STATIC_CONDS <const>: { string } = {
-	"charId",
-	"race",
-	"isMale",
-	"classes",
-}
 -- end constants
 
 -- variables
@@ -361,7 +354,7 @@ local function undoItemDistribution(fileName: string, effectId: string)
 	distTable[fileName .. effectId].items = nil
 end
 
-local CONDITIONS <const>: { { string, function(string, any) } } = {
+local STATIC_CONDITIONS <const>: { { string, function(string, any) } } = {
 	{ "charId",
 		function(_, condId: { string }): boolean
 			local charId = types.NPC.record(this.object as types.Actor).id
@@ -386,16 +379,25 @@ local CONDITIONS <const>: { { string, function(string, any) } } = {
 		end
 	},
 
+	{ "isMale",
+		function(_, isMale: boolean): boolean
+			return types.NPC.record(this.object as types.Actor).isMale == isMale
+		end
+	},
+
+	{ "classes",
+		function(_, classes: { string: boolean }): boolean
+			local class = types.NPC.record(this.object).class
+			return classes[string.lower(class)]
+		end
+	},
+}
+
+local CONDITIONS <const>: { { string, function(string, any) } } = {
 	{ "level", 
 		function(_, level: CEFRange): boolean
 			local actorLevel = types.Actor.stats.level(this.object)
 			return compareRange(actorLevel.current, level)
-		end
-	},
-
-	{ "isMale",
-		function(_, isMale: boolean): boolean
-			return types.NPC.record(this.object as types.Actor).isMale == isMale
 		end
 	},
 
@@ -504,13 +506,6 @@ local CONDITIONS <const>: { { string, function(string, any) } } = {
 		end
 	},
 
-	{ "classes",
-		function(_, classes: { string: boolean }): boolean
-			local class = types.NPC.record(this.object).class
-			return classes[string.lower(class)]
-		end
-	},
-
 	{ "guilds",
 		function(_, guilds: { string: CEFGuild }): boolean
 			local actorGuilds: { string: boolean } = {}
@@ -567,16 +562,14 @@ local CONDITIONS <const>: { { string, function(string, any) } } = {
 	},
 }
 
-local function checkConditions(effectId: string, conditions: { CEFCondition }): boolean, { string }
+local function checkStaticConditions(effectId: string, conditions: { CEFCondition }): boolean
 	local result: boolean = true
-	local failedCond: { string } = {}
 	for _, v1 in ipairs(conditions) do
 		result = true
-		for _, v2 in ipairs(CONDITIONS) do
+		for _, v2 in ipairs(STATIC_CONDITIONS) do
 			local condition = (v1 as { string: any })[v2[1]]
 			if condition ~= nil and v2[2](effectId, condition) == false then
 				result = false
-				failedCond[#failedCond + 1] = v2[1]
 				break
 			end
 		end
@@ -584,27 +577,36 @@ local function checkConditions(effectId: string, conditions: { CEFCondition }): 
 			return result
 		end
 	end
-	return result, failedCond
+	return result
 end
 
-local function checkEffectConditions(fileName: string, effectId: string, effect: CEFConfig): { string }
+local function checkConditions(effectId: string, conditions: { CEFCondition }): boolean
+	local result: boolean = true
+	for _, v1 in ipairs(conditions) do
+		result = true
+		for _, v2 in ipairs(CONDITIONS) do
+			local condition = (v1 as { string: any })[v2[1]]
+			if condition ~= nil and v2[2](effectId, condition) == false then
+				result = false
+				break
+			end
+		end
+		if result == true then
+			return result
+		end
+	end
+	return result
+end
+
+local function checkEffectConditions(fileName: string, effectId: string, effect: CEFConfig)
 	if distTable[fileName .. effectId] == nil then
 		distTable[fileName .. effectId] = {}
 	end
-	if fileName == "barbs and tapers" and types.NPC.record(this.object).id == "bat_slut" then
-		print(effectId)
-	end
-	local conditionResult: boolean = nil
-	local failedConditions: { string } = nil
-	conditionResult, failedConditions = checkConditions(effectId, effect.conditions)
-	if conditionResult == false then
-		if fileName == "barbs and tapers" and types.NPC.record(this.object).id == "bat_slut" and effectId == "sheath" then
-			print("test2")
-		end
+	if checkConditions(effectId, effect.conditions) == false then
 		if effect.effects ~= nil and distTable[fileName .. effectId].effects ~= nil then
 			removeCosmetics(fileName, effectId)
 		end
-		return failedConditions
+		return
 	end
 	if effect.effects ~= nil and distTable[fileName .. effectId].effects == nil then
 		applyCosmetics(fileName, effectId, effect.effects)
@@ -619,19 +621,7 @@ end
 
 local function checkEffect(fileName: string, effectId: string, effect: CEFConfig)
 	if settings:asTable().cefEnable == true and ((configSettings:asTable()["configToggle" .. fileName] as { string: boolean })[effectId] == true) then
-		local failedConditions: { string } = checkEffectConditions(fileName, effectId, effect)
-		if effectWhitelist[fileName] == nil then
-			effectWhitelist[fileName] = {}
-		end
-		if failedConditions ~= nil then
-			for _, condition in ipairs(failedConditions) do
-				if tableHasElement(STATIC_CONDS, condition) == false then
-					effectWhitelist[fileName][effectId] = effect
-				end
-			end
-		else
-			effectWhitelist[fileName][effectId] = effect
-		end
+		checkEffectConditions(fileName, effectId, effect)
 	elseif distTable[fileName .. effectId] ~= nil then
 		if effect.effects ~= nil and distTable[fileName .. effectId].effects ~= nil then
 			removeCosmetics(fileName, effectId)
@@ -647,14 +637,7 @@ local function checkEffect(fileName: string, effectId: string, effect: CEFConfig
 end
 
 local function loopThroughEffects()
-	local effectsTable: { string: { string: CEFConfig } }
-	if effectWhitelist == nil then
-		effectsTable = configData:asTable() as { string: { string: CEFConfig } }
-		effectWhitelist = {}
-	else
-		effectsTable = effectWhitelist
-	end
-	for fileName, contents in pairs(effectsTable) do
+	for fileName, contents in pairs(effectWhitelist) do
 		for effectId, effect in pairs(contents as { string: CEFConfig }) do
 			checkEffect(fileName, effectId, effect)
 		end
@@ -695,6 +678,19 @@ local function removeEffects()
 	end
 end
 
+local function buildEffectWhitelist()
+	for fileName, contents in pairs(configData:asTable() as { string: { string: CEFConfig } }) do
+		for effectId, effect in pairs(contents as { string: CEFConfig }) do
+			if effectWhitelist[fileName] == nil then
+				effectWhitelist[fileName] = {}
+			end
+			if checkStaticConditions(effectId, effect.conditions) == true then
+				effectWhitelist[fileName][effectId] = effect
+			end
+		end
+	end
+end
+
 return {
    	engineHandlers = {
 		onSave = function(): SaveData
@@ -713,6 +709,10 @@ return {
 			varsTable = storage.globalSection(this.object.id)
 			configSettings = storage.globalSection("SettingsConditionalEffectsFrameworkConfigs")
 			settings = storage.globalSection("SettingsGeneralConditionalEffectsFramework")
+			if effectWhitelist == nil then
+				effectWhitelist = {}
+				buildEffectWhitelist()
+			end
 			time.runRepeatedly(checkNearby, (settings:asTable().cefTickDelay as number), {})
 		end,
 		onUpdate = function()

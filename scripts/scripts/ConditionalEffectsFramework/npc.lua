@@ -157,13 +157,6 @@ local ITEM_INTERFACES = {
    types.Weapon.records,
 }
 
-local STATIC_CONDS = {
-   "charId",
-   "race",
-   "isMale",
-   "classes",
-}
-
 
 
 local realTime = core.getRealTime()
@@ -361,7 +354,7 @@ local function undoItemDistribution(fileName, effectId)
    distTable[fileName .. effectId].items = nil
 end
 
-local CONDITIONS = {
+local STATIC_CONDITIONS = {
    { "charId",
    function(_, condId)
       local charId = types.NPC.record(this.object).id
@@ -386,16 +379,25 @@ local CONDITIONS = {
    end,
    },
 
+   { "isMale",
+   function(_, isMale)
+      return types.NPC.record(this.object).isMale == isMale
+   end,
+   },
+
+   { "classes",
+   function(_, classes)
+      local class = types.NPC.record(this.object).class
+      return classes[string.lower(class)]
+   end,
+   },
+}
+
+local CONDITIONS = {
    { "level",
    function(_, level)
       local actorLevel = types.Actor.stats.level(this.object)
       return compareRange(actorLevel.current, level)
-   end,
-   },
-
-   { "isMale",
-   function(_, isMale)
-      return types.NPC.record(this.object).isMale == isMale
    end,
    },
 
@@ -504,13 +506,6 @@ local CONDITIONS = {
    end,
    },
 
-   { "classes",
-   function(_, classes)
-      local class = types.NPC.record(this.object).class
-      return classes[string.lower(class)]
-   end,
-   },
-
    { "guilds",
    function(_, guilds)
       local actorGuilds = {}
@@ -567,16 +562,14 @@ local CONDITIONS = {
    },
 }
 
-local function checkConditions(effectId, conditions)
+local function checkStaticConditions(effectId, conditions)
    local result = true
-   local failedCond = {}
    for _, v1 in ipairs(conditions) do
       result = true
-      for _, v2 in ipairs(CONDITIONS) do
+      for _, v2 in ipairs(STATIC_CONDITIONS) do
          local condition = (v1)[v2[1]]
          if condition ~= nil and v2[2](effectId, condition) == false then
             result = false
-            failedCond[#failedCond + 1] = v2[1]
             break
          end
       end
@@ -584,27 +577,36 @@ local function checkConditions(effectId, conditions)
          return result
       end
    end
-   return result, failedCond
+   return result
+end
+
+local function checkConditions(effectId, conditions)
+   local result = true
+   for _, v1 in ipairs(conditions) do
+      result = true
+      for _, v2 in ipairs(CONDITIONS) do
+         local condition = (v1)[v2[1]]
+         if condition ~= nil and v2[2](effectId, condition) == false then
+            result = false
+            break
+         end
+      end
+      if result == true then
+         return result
+      end
+   end
+   return result
 end
 
 local function checkEffectConditions(fileName, effectId, effect)
    if distTable[fileName .. effectId] == nil then
       distTable[fileName .. effectId] = {}
    end
-   if fileName == "barbs and tapers" and types.NPC.record(this.object).id == "bat_slut" then
-      print(effectId)
-   end
-   local conditionResult = nil
-   local failedConditions = nil
-   conditionResult, failedConditions = checkConditions(effectId, effect.conditions)
-   if conditionResult == false then
-      if fileName == "barbs and tapers" and types.NPC.record(this.object).id == "bat_slut" and effectId == "sheath" then
-         print("test2")
-      end
+   if checkConditions(effectId, effect.conditions) == false then
       if effect.effects ~= nil and distTable[fileName .. effectId].effects ~= nil then
          removeCosmetics(fileName, effectId)
       end
-      return failedConditions
+      return
    end
    if effect.effects ~= nil and distTable[fileName .. effectId].effects == nil then
       applyCosmetics(fileName, effectId, effect.effects)
@@ -619,19 +621,7 @@ end
 
 local function checkEffect(fileName, effectId, effect)
    if settings:asTable().cefEnable == true and ((configSettings:asTable()["configToggle" .. fileName])[effectId] == true) then
-      local failedConditions = checkEffectConditions(fileName, effectId, effect)
-      if effectWhitelist[fileName] == nil then
-         effectWhitelist[fileName] = {}
-      end
-      if failedConditions ~= nil then
-         for _, condition in ipairs(failedConditions) do
-            if tableHasElement(STATIC_CONDS, condition) == false then
-               effectWhitelist[fileName][effectId] = effect
-            end
-         end
-      else
-         effectWhitelist[fileName][effectId] = effect
-      end
+      checkEffectConditions(fileName, effectId, effect)
    elseif distTable[fileName .. effectId] ~= nil then
       if effect.effects ~= nil and distTable[fileName .. effectId].effects ~= nil then
          removeCosmetics(fileName, effectId)
@@ -647,14 +637,7 @@ local function checkEffect(fileName, effectId, effect)
 end
 
 local function loopThroughEffects()
-   local effectsTable
-   if effectWhitelist == nil then
-      effectsTable = configData:asTable()
-      effectWhitelist = {}
-   else
-      effectsTable = effectWhitelist
-   end
-   for fileName, contents in pairs(effectsTable) do
+   for fileName, contents in pairs(effectWhitelist) do
       for effectId, effect in pairs(contents) do
          checkEffect(fileName, effectId, effect)
       end
@@ -695,6 +678,19 @@ local function removeEffects()
    end
 end
 
+local function buildEffectWhitelist()
+   for fileName, contents in pairs(configData:asTable()) do
+      for effectId, effect in pairs(contents) do
+         if effectWhitelist[fileName] == nil then
+            effectWhitelist[fileName] = {}
+         end
+         if checkStaticConditions(effectId, effect.conditions) == true then
+            effectWhitelist[fileName][effectId] = effect
+         end
+      end
+   end
+end
+
 return {
    engineHandlers = {
       onSave = function()
@@ -713,6 +709,10 @@ return {
          varsTable = storage.globalSection(this.object.id)
          configSettings = storage.globalSection("SettingsConditionalEffectsFrameworkConfigs")
          settings = storage.globalSection("SettingsGeneralConditionalEffectsFramework")
+         if effectWhitelist == nil then
+            effectWhitelist = {}
+            buildEffectWhitelist()
+         end
          time.runRepeatedly(checkNearby, (settings:asTable().cefTickDelay), {})
       end,
       onUpdate = function()
