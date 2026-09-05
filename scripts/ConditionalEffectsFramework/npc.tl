@@ -4,6 +4,7 @@ local anim = require('openmw.animation')
 local this = require('openmw.self')
 local storage = require('openmw.storage')
 local nearby = require('openmw.nearby')
+local async = require('openmw.async')
 
 -- interfaces
 local interface CEFRange 
@@ -594,10 +595,16 @@ local function loopThroughEffects()
 end
 
 local function checkNearby()
-	for _, v in ipairs(nearby.players) do
-		if v ~= nil and types.Actor.isInActorsProcessingRange(v) == true then
-			loopThroughEffects()
-			break
+	for _, player in ipairs(nearby.players) do
+		if types.Actor.isInActorsProcessingRange(player) == true then
+			nearby.asyncCastRenderingRay(async:callback(
+				function(result: nearby.RayCastingResult)
+					if result.hit == false then
+						loopThroughEffects()
+					end
+				end),
+				player.position, (this as core.GameObject).position, { ignore = player }
+			)
 		end
 	end
 end
@@ -643,6 +650,7 @@ return {
 				effectWhitelist = {}
 				buildEffectWhitelist()
 			end
+			loopThroughEffects()
 		end,
 		onUpdate = function()
 		end,

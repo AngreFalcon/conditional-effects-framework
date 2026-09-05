@@ -5,7 +5,6 @@ local vfs = require('openmw.vfs')
 local time = require('openmw_aux.time')
 local json = require('scripts.lib.json')
 local types = require('openmw.types')
-local async = require('openmw.async')
 
 local ITEM_INTERFACES <const>: { { any } } = {
 	types.Apparatus.records,
