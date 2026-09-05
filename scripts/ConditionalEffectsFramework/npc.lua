@@ -3,7 +3,6 @@ local types = require('openmw.types')
 local anim = require('openmw.animation')
 local this = require('openmw.self')
 local storage = require('openmw.storage')
-local time = require('openmw_aux.time')
 local nearby = require('openmw.nearby')
 
 
@@ -144,15 +143,12 @@ local EQUIP_SLOTS = {
 
 
 
-local realTime = core.getRealTime()
-local elapsedTime = 0
 local configData
 local varsTable
 local configSettings
 local settings
 local distTable = {}
 local effectWhitelist
-local pollKillSwitch = nil
 
 
 

@@ -3,7 +3,6 @@ local types = require('openmw.types')
 local anim = require('openmw.animation')
 local this = require('openmw.self')
 local storage = require('openmw.storage')
-local time = require('openmw_aux.time')
 local nearby = require('openmw.nearby')
 
 -- interfaces
@@ -144,15 +143,12 @@ local EQUIP_SLOTS <const>: { string: number } = {
 -- end constants
 
 -- variables
-local realTime: number = core.getRealTime()
-local elapsedTime: number = 0
 local configData: storage.StorageSection
 local varsTable: storage.StorageSection
 local configSettings: storage.StorageSection
 local settings: storage.StorageSection
 local distTable: { string: DistributionTable } = {} -- effectId.spell/item = true/false
 local effectWhitelist: { string: { string: CEFConfig } }
-local pollKillSwitch: function = nil
 -- end variables
 
 -- functions

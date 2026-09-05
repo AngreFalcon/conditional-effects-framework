@@ -3,7 +3,6 @@ local types = require('openmw.types')
 local anim = require('openmw.animation')
 local this = require('openmw.self')
 local storage = require('openmw.storage')
-local time = require('openmw_aux.time')
 local nearby = require('openmw.nearby')
 
 -- interfaces
