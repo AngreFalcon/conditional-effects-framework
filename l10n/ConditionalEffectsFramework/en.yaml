@@ -15,6 +15,11 @@ cef_enable_desc: Enables or disables Conditional Effects Framework.
 cef_enable_enabled: CEF Enabled
 cef_enable_disabled: CEF Disabled
 
+cef_lite_mode_name: Lite mode
+cef_lite_mode_desc: If enabled, effects will only be checked when an actor loads. This means, once an effect is applied, it won't be removed until the actor is unloaded. This also means if an effect's conditions fail, that effect won't be re-evaluated until the next time the actor loads. Enabling this may drastically increase performance.
+cef_lite_mode_enabled: Lite Mode Enabled
+cef_lite_mode_disabled: Lite Mode Disabled
+
 tick_rate_name: Tick Rate
 tick_rate_desc: The tick rate in seconds for Conditional Effects Framework. Lower values may affect performance in NPC-heavy areas.
 

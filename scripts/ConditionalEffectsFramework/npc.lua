@@ -152,6 +152,7 @@ local configSettings
 local settings
 local distTable = {}
 local effectWhitelist
+local pollKillSwitch = nil
 
 
 
@@ -364,6 +365,26 @@ local CONDITIONS = {
    end,
    },
 
+   { "isBeastRace",
+   function(_, isBeastRace)
+      local race = types.NPC.record(this.object).id
+      return types.NPC.races.record(race).isBeast == isBeastRace
+   end,
+   },
+
+   { "hasEffects",
+   function(_, fileEffects)
+      for fileName, effects in pairs(fileEffects) do
+         for effectId, value in pairs(effects) do
+            if (distTable[fileName .. effectId] == nil) == value then
+               return false
+            end
+         end
+      end
+      return true
+   end,
+   },
+
    { "isSlave",
    function(_, isSlave)
       local leftBracer = (types.Actor.getEquipment(this.object, EQUIP_SLOTS["leftgauntlet"]))
@@ -374,10 +395,21 @@ local CONDITIONS = {
    end,
    },
 
-   { "isBeastRace",
-   function(_, isBeastRace)
-      local race = types.NPC.record(this.object).id
-      return types.NPC.races.record(race).isBeast == isBeastRace
+   { "getRandom",
+   function(effectId, chance)
+      if chance == 1 then
+         return true
+      elseif chance < 1 then
+         return false
+      end
+      local seed = 0
+      local seedString = this.object.id .. effectId
+      for i = 1, #seedString do
+         seed = seed + seedString:byte(i)
+      end
+      math.randomseed(seed)
+      local random = math.random(1, math.floor(chance))
+      return math.floor((chance / 2) + 0.5) == random
    end,
    },
 
@@ -474,37 +506,6 @@ local CONDITIONS = {
       return true
    end,
    },
-
-   { "getRandom",
-   function(effectId, chance)
-      if chance == 1 then
-         return true
-      elseif chance < 1 then
-         return false
-      end
-      local seed = 0
-      local seedString = this.object.id .. effectId
-      for i = 1, #seedString do
-         seed = seed + seedString:byte(i)
-      end
-      math.randomseed(seed)
-      local random = math.random(1, math.floor(chance))
-      return math.floor((chance / 2) + 0.5) == random
-   end,
-   },
-
-   { "hasEffects",
-   function(_, fileEffects)
-      for fileName, effects in pairs(fileEffects) do
-         for effectId, value in pairs(effects) do
-            if (distTable[fileName .. effectId] == nil) == value then
-               return false
-            end
-         end
-      end
-      return true
-   end,
-   },
 }
 
 local function checkStaticConditions(effectId, conditions)
@@ -553,8 +554,12 @@ local function checkEffectConditions(fileName, effectId, effect)
       end
       return
    end
-   if effect.effects ~= nil and distTable[fileName .. effectId].effects == nil then
-      applyCosmetics(fileName, effectId, effect.effects)
+   if effect.effects ~= nil then
+      if distTable[fileName .. effectId].effects == nil then
+         applyCosmetics(fileName, effectId, effect.effects)
+      end
+   else
+      effectWhitelist[fileName][effectId] = nil
    end
    if effect.spells ~= nil and distTable[fileName .. effectId].spells == nil then
       applySpellDistribution(fileName, effectId, effect.spells)
@@ -568,6 +573,9 @@ local function checkEffect(fileName, effectId, effect)
    if settings:asTable().cefEnable == true and ((configSettings:asTable()["configToggle" .. fileName])[effectId] == true) then
       checkEffectConditions(fileName, effectId, effect)
    elseif distTable[fileName .. effectId] ~= nil then
+      if effectWhitelist[fileName][effectId] == nil then
+         effectWhitelist[fileName][effectId] = effect
+      end
       if effect.effects ~= nil and distTable[fileName .. effectId].effects ~= nil then
          removeCosmetics(fileName, effectId)
       end
@@ -590,9 +598,6 @@ local function loopThroughEffects()
 end
 
 local function checkNearby()
-   if next(distTable) == nil and settings:asTable().cefEnable == false then
-      return
-   end
    for _, v in ipairs(nearby.players) do
       if v ~= nil and types.Actor.isInActorsProcessingRange(v) == true then
          loopThroughEffects()
@@ -602,17 +607,8 @@ local function checkNearby()
 end
 
 local function removeEffects()
-   if next(distTable) == nil then
-      return
-   end
-   for fileName, contents in pairs(configData:asTable()) do
-      for effectId, effect in pairs(contents) do
-         if distTable[fileName .. effectId] ~= nil then
-            if effect.effects ~= nil and distTable[fileName .. effectId].effects ~= nil then
-               distTable[fileName .. effectId].effects = nil
-            end
-         end
-      end
+   for k, _ in pairs(distTable) do
+      distTable[k].effects = nil
    end
 end
 
@@ -651,14 +647,16 @@ return {
             effectWhitelist = {}
             buildEffectWhitelist()
          end
-         time.runRepeatedly(checkNearby, (settings:asTable().cefTickDelay), {})
       end,
       onUpdate = function()
-         if core.isWorldPaused() and settings:asTable().cefEnableMenuUpdates == true and ((realTime - elapsedTime) >= (settings:asTable().cefMenuTickDelay)) then
-            checkNearby()
-            elapsedTime = realTime
+      end,
+   },
+   eventHandlers = {
+      cefUpdate = function()
+         if next(distTable) == nil and settings:asTable().cefEnable == false then
+            return
          end
-         realTime = core.getRealTime()
+         checkNearby()
       end,
    },
 }

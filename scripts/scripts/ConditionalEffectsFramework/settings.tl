@@ -84,6 +84,18 @@ I.Settings.registerGroup {
                 falseLabel = "cef_enable_disabled",
             }
         },
+        {
+            renderer = "checkbox",
+            key = "cefLiteMode",
+            name = "cef_lite_mode_name",
+            description = "cef_lite_mode_desc",
+            default = false,
+            argument = {
+                l10n = "ConditionalEffectsFramework",
+                trueLabel = "cef_lite_mode_enabled",
+                falseLabel = "cef_lite_mode_disabled",
+            }
+        },
 		{
 			renderer = "number",
 			key = "cefTickDelay",

@@ -144,8 +144,6 @@ local EQUIP_SLOTS <const>: { string: number } = {
 -- end constants
 
 -- variables
-local realTime: number = core.getRealTime()
-local elapsedTime: number = 0
 local configData: storage.StorageSection
 local varsTable: storage.StorageSection
 local configSettings: storage.StorageSection
@@ -364,6 +362,26 @@ local CONDITIONS <const>: { { string, function(string, any) } } = {
 		end
 	},
 
+	{ "isBeastRace",
+		function(_, isBeastRace: boolean): boolean
+			local race: string = types.NPC.record(this.object).id
+			return types.NPC.races.record(race).isBeast == isBeastRace
+		end
+	},
+
+	{ "hasEffects",
+		function(_, fileEffects: { string: { string: boolean } }): boolean
+			for fileName, effects in pairs(fileEffects) do
+				for effectId, value in pairs(effects) do
+					if (distTable[fileName .. effectId] == nil) == value then
+						return false
+					end
+				end
+			end
+			return true
+		end
+	},
+
 	{ "isSlave",
 		function(_, isSlave: boolean): boolean
 			local leftBracer = (types.Actor.getEquipment(this.object, EQUIP_SLOTS["leftgauntlet"]) as core.GameObject)
@@ -374,10 +392,21 @@ local CONDITIONS <const>: { { string, function(string, any) } } = {
 		end
 	},
 
-	{ "isBeastRace",
-		function(_, isBeastRace: boolean): boolean
-			local race: string = types.NPC.record(this.object).id
-			return types.NPC.races.record(race).isBeast == isBeastRace
+	{ "getRandom",
+		function(effectId: string, chance: number): boolean
+			if chance == 1 then
+				return true
+			elseif chance < 1 then
+				return false
+			end
+			local seed: integer = 0
+			local seedString: string = this.object.id .. effectId
+			for i = 1, #seedString do
+				seed = seed + seedString:byte(i)
+			end
+			math.randomseed(seed)
+			local random = math.random(1, math.floor(chance))
+			return math.floor((chance / 2) + 0.5) == random
 		end
 	},
 
@@ -474,37 +503,6 @@ local CONDITIONS <const>: { { string, function(string, any) } } = {
 			return true
 		end
 	},
-
-	{ "getRandom",
-		function(effectId: string, chance: number): boolean
-			if chance == 1 then
-				return true
-			elseif chance < 1 then
-				return false
-			end
-			local seed: integer = 0
-			local seedString: string = this.object.id .. effectId
-			for i = 1, #seedString do
-				seed = seed + seedString:byte(i)
-			end
-			math.randomseed(seed)
-			local random = math.random(1, math.floor(chance))
-			return math.floor((chance / 2) + 0.5) == random
-		end
-	},
-
-	{ "hasEffects",
-		function(_, fileEffects: { string: { string: boolean } }): boolean
-			for fileName, effects in pairs(fileEffects) do
-				for effectId, value in pairs(effects) do
-					if (distTable[fileName .. effectId] == nil) == value then
-						return false
-					end
-				end
-			end
-			return true
-		end
-	},
 }
 
 local function checkStaticConditions(effectId: string, conditions: { CEFCondition }): boolean
@@ -553,8 +551,12 @@ local function checkEffectConditions(fileName: string, effectId: string, effect:
 		end
 		return
 	end
-	if effect.effects ~= nil and distTable[fileName .. effectId].effects == nil then
-		applyCosmetics(fileName, effectId, effect.effects)
+	if effect.effects ~= nil then
+		if distTable[fileName .. effectId].effects == nil then
+			applyCosmetics(fileName, effectId, effect.effects)
+		end
+	else -- this effect contains no vfx. because items and spells are only applied once and never again, remove this effect from the whitelist; we no longer need to evaluate it for this actor
+		effectWhitelist[fileName][effectId] = nil
 	end
 	if effect.spells ~= nil and distTable[fileName .. effectId].spells == nil then
 		applySpellDistribution(fileName, effectId, effect.spells)
@@ -567,7 +569,10 @@ end
 local function checkEffect(fileName: string, effectId: string, effect: CEFConfig)
 	if settings:asTable().cefEnable == true and ((configSettings:asTable()["configToggle" .. fileName] as { string: boolean })[effectId] == true) then
 		checkEffectConditions(fileName, effectId, effect)
-	elseif distTable[fileName .. effectId] ~= nil then
+	elseif distTable[fileName .. effectId] ~= nil then -- only executes if the effect is disabled or cef is disabled, and the effect is still applied
+		if effectWhitelist[fileName][effectId] == nil then
+			effectWhitelist[fileName][effectId] = effect
+		end
 		if effect.effects ~= nil and distTable[fileName .. effectId].effects ~= nil then
 			removeCosmetics(fileName, effectId)
 		end
@@ -590,9 +595,6 @@ local function loopThroughEffects()
 end
 
 local function checkNearby()
-	if next(distTable) == nil and settings:asTable().cefEnable == false then
-		return
-	end
 	for _, v in ipairs(nearby.players) do
 		if v ~= nil and types.Actor.isInActorsProcessingRange(v) == true then
 			loopThroughEffects()
@@ -602,17 +604,8 @@ local function checkNearby()
 end
 
 local function removeEffects()
-	if next(distTable) == nil then
-		return
-	end
-	for fileName, contents in pairs(configData:asTable() as { string: any }) do
-		for effectId, effect in pairs(contents as { string: CEFConfig }) do
-			if distTable[fileName .. effectId] ~= nil then
-				if effect.effects ~= nil and distTable[fileName .. effectId].effects ~= nil then
-					distTable[fileName .. effectId].effects = nil
-				end
-			end
-		end
+	for k, _ in pairs(distTable) do
+		distTable[k].effects = nil
 	end
 end
 
@@ -651,14 +644,16 @@ return {
 				effectWhitelist = {}
 				buildEffectWhitelist()
 			end
-			time.runRepeatedly(checkNearby, (settings:asTable().cefTickDelay as number), {})
 		end,
 		onUpdate = function()
-			if core.isWorldPaused() and settings:asTable().cefEnableMenuUpdates == true and ((realTime - elapsedTime) >= (settings:asTable().cefMenuTickDelay as number)) then
-				checkNearby()
-				elapsedTime = realTime
-			end
-			realTime = core.getRealTime()
 		end,
    	},
+	eventHandlers = {
+		cefUpdate = function()
+			if next(distTable) == nil and settings:asTable().cefEnable == false then
+				return
+			end
+			checkNearby()
+		end,
+	},
 }

@@ -5,6 +5,7 @@ local vfs = require('openmw.vfs')
 local time = require('openmw_aux.time')
 local json = require('scripts.lib.json')
 local types = require('openmw.types')
+local async = require('openmw.async')
 
 local ITEM_INTERFACES = {
    types.Apparatus.records,
@@ -21,9 +22,11 @@ local ITEM_INTERFACES = {
    types.Weapon.records,
 }
 
-local timerDelay = (0.1 * time.second)
+
 local realTime = core.getRealTime()
 local elapsedTime = 0
+local settings
+local pollKillSwitch = nil
 
 local function syncMWVars(actor)
    if actor ~= nil then
@@ -101,10 +104,8 @@ local function validateEffectIDs()
          if effect.items ~= nil then
             for _, item in ipairs(effect.items) do
                local itemIdType = type(item.itemId)
-               if itemIdType == "string" then
-                  if validateItemId(item.itemId) == false then
-                     print("Item could not be found by ID: " .. item.itemId .. " in file: " .. fileName .. " for effect: " .. effectId)
-                  end
+               if itemIdType == "string" and validateItemId(item.itemId) == false then
+                  print("Item could not be found by ID: " .. item.itemId .. " in file: " .. fileName .. " for effect: " .. effectId)
                elseif itemIdType == "table" then
                   if #item.itemId > 0 then
                      for _, v in ipairs(item.itemId) do
@@ -126,6 +127,15 @@ local function validateEffectIDs()
    end
 end
 
+local function performConditionUpdate()
+   for _, actor in ipairs(world.activeActors) do
+      if types.NPC.objectIsInstance(actor) == true then
+         syncMWVars(actor)
+         actor:sendEvent("cefUpdate", {})
+      end
+   end
+end
+
 
 
 
@@ -141,16 +151,33 @@ return {
          validateEffectIDs()
       end,
       onActorActive = function(actor)
+         if types.NPC.objectIsInstance(actor) == false then
+            return
+         end
          syncMWVars(actor)
          storage.globalSection(actor.id):setLifeTime(storage.LIFE_TIME.GameSession)
       end,
       onUpdate = function()
-         if ((realTime - elapsedTime) >= (timerDelay)) then
-            for i = 1, #world.activeActors do
-               local actor = world.activeActors[i]
-               syncMWVars(actor)
+         if settings == nil then
+            settings = storage.globalSection("SettingsGeneralConditionalEffectsFramework")
+            return
+         end
+         if settings:asTable().cefEnable == false then
+            if pollKillSwitch ~= nil then
+               pollKillSwitch()
+            end
+            return
+         end
+         if settings:asTable().cefLiteMode == false and ((realTime - elapsedTime) >= (settings:asTable().cefMenuTickDelay)) then
+            if core.isWorldPaused() and settings:asTable().cefEnableMenuUpdates == true then
+               performConditionUpdate()
+            elseif pollKillSwitch == nil then
+               pollKillSwitch = time.runRepeatedly(performConditionUpdate, (settings:asTable().cefTickDelay), {})
             end
             elapsedTime = realTime
+         elseif settings:asTable().cefLiteMode == true and pollKillSwitch ~= nil then
+            pollKillSwitch()
+            pollKillSwitch = nil
          end
          realTime = core.getRealTime()
       end,
