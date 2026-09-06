@@ -127,6 +127,7 @@ local function validateEffectIDs()
 end
 
 local function performConditionUpdate()
+	print("test")
 	for _, actor in ipairs(world.activeActors) do
 		if types.NPC.objectIsInstance(actor) == true then
 			syncMWVars(actor)
