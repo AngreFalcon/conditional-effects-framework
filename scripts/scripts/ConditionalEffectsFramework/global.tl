@@ -101,17 +101,10 @@ local function validateEffectIDs()
 				end
 			end
 			if effect.items ~= nil then
-				for _, item in ipairs(effect.items as { { string: string } }) do
-					local itemIdType = type(item.itemId)
-					if itemIdType == "string" and validateItemId(item.itemId) == false then
-						print("Item could not be found by ID: " .. item.itemId .. " in file: " .. fileName .. " for effect: " .. effectId)
-					elseif itemIdType == "table" then
-						local k, v = next(item.itemId as { any: string })
-						while k do
-							if v ~= "nil" and validateItemId(v) == false then
-								print("Item could not be found by ID: " .. v .. " in file: " .. fileName .. " for effect: " .. effectId)
-							end
-							k, v = next(item.itemId as { any: string }, k)
+				for _, itemPool in ipairs(effect.items as { { string: { { string: string } } } }) do
+					for _, item in ipairs(itemPool.itemPool) do
+						if item.itemId ~= "nil" and validateItemId(item.itemId) == false then
+							print("Item could not be found by ID: " .. item.itemId .. " in file: " .. fileName .. " for effect: " .. effectId)
 						end
 					end
 				end
