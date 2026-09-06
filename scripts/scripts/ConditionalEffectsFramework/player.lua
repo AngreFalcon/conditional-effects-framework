@@ -41,15 +41,24 @@ return {
    eventHandlers = {
 
       ["UiModeChanged"] = function(data)
-         if data.newMode == MENU_MODES.Rest and data.oldMode == nil then
-            activatedBed = core.getGameTime()
-         elseif data.newMode == nil and data.oldMode == MENU_MODES.Rest then
-            if core.getGameTime() > activatedBed then
-               core.sendGlobalEvent("updateVfx", {})
+         if data.newMode ~= nil and data.oldMode == nil then
+            if data.newMode == MENU_MODES.Rest then
+               activatedBed = core.getGameTime()
+            elseif data.newMode == MENU_MODES.MainMenu then
+               core.sendGlobalEvent("cefMenuOpened", {})
+            else
+               core.sendGlobalEvent("cefMenuOpened", {})
             end
-         elseif data.oldMode == MENU_MODES.MainMenu and data.newMode == nil then
-            core.sendGlobalEvent("settingsChanged", {})
-         elseif data.newMode == MENU_MODES.MainMenu then
+         elseif data.newMode == nil and data.oldMode ~= nil then
+            if data.oldMode == MENU_MODES.Rest then
+               if core.getGameTime() > activatedBed then
+                  core.sendGlobalEvent("cefUpdateVfx", {})
+               end
+            elseif data.oldMode == MENU_MODES.MainMenu then
+               core.sendGlobalEvent("cefMainMenuClosed", {})
+            else
+               core.sendGlobalEvent("cefMenuClosed", {})
+            end
          end
       end,
    },

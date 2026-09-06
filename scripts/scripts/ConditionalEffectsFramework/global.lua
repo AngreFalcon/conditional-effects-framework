@@ -5,6 +5,7 @@ local vfs = require('openmw.vfs')
 local time = require('openmw_aux.time')
 local json = require('scripts.lib.json')
 local types = require('openmw.types')
+local async = require('openmw.async')
 
 local ITEM_INTERFACES = {
    types.Apparatus.records,
@@ -21,11 +22,11 @@ local ITEM_INTERFACES = {
    types.Weapon.records,
 }
 
-
 local realTime = core.getRealTime()
 local elapsedTime = 0
 local settings
 local pollKillSwitch = nil
+local timerRunning = false
 
 local function syncMWVars(actor)
    if actor ~= nil then
@@ -101,17 +102,10 @@ local function validateEffectIDs()
             end
          end
          if effect.items ~= nil then
-            for _, item in ipairs(effect.items) do
-               local itemIdType = type(item.itemId)
-               if itemIdType == "string" and validateItemId(item.itemId) == false then
-                  print("Item could not be found by ID: " .. item.itemId .. " in file: " .. fileName .. " for effect: " .. effectId)
-               elseif itemIdType == "table" then
-                  local k, v = next(item.itemId)
-                  while k do
-                     if v ~= "nil" and validateItemId(v) == false then
-                        print("Item could not be found by ID: " .. v .. " in file: " .. fileName .. " for effect: " .. effectId)
-                     end
-                     k, v = next(item.itemId, k)
+            for _, itemPool in ipairs(effect.items) do
+               for _, item in ipairs(itemPool.itemPool) do
+                  if item.itemId ~= "nil" and validateItemId(item.itemId) == false then
+                     print("Item could not be found by ID: " .. item.itemId .. " in file: " .. fileName .. " for effect: " .. effectId)
                   end
                end
             end
@@ -129,19 +123,32 @@ local function performConditionUpdate()
    end
 end
 
+local function createUpdateTimer()
+
+
+
+
+
+
+
+   if timerRunning == true then
+
+      timerRunning = false
+   end
+
+   if timerRunning == false and settings:asTable().cefEnable == true and settings:asTable().cefLiteMode == false then
+      async:newUnsavableSimulationTimer((settings:asTable().cefTickDelay), performConditionUpdate)
+
+      timerRunning = true
+   end
+end
+
 local function clearEffects()
    for _, actor in ipairs(world.activeActors) do
       if types.NPC.objectIsInstance(actor) == true then
          actor:sendEvent("cefRemoveEffects", {})
       end
    end
-end
-
-local function updatePollRate()
-   if pollKillSwitch ~= nil then
-      pollKillSwitch()
-   end
-   pollKillSwitch = time.runRepeatedly(performConditionUpdate, (settings:asTable().cefTickDelay), {})
 end
 
 
@@ -157,6 +164,10 @@ return {
          local parsedConfigData = parseConfigFiles(configData)
          storeConfigFiles(parsedConfigData)
          validateEffectIDs()
+         if settings == nil then
+            settings = storage.globalSection("SettingsGeneralConditionalEffectsFramework")
+         end
+         createUpdateTimer()
       end,
       onActorActive = function(actor)
          if types.NPC.objectIsInstance(actor) == false then
@@ -166,45 +177,33 @@ return {
          storage.globalSection(actor.id):setLifeTime(storage.LIFE_TIME.GameSession)
       end,
       onUpdate = function()
-         if settings == nil then
-            settings = storage.globalSection("SettingsGeneralConditionalEffectsFramework")
-            return
-         end
-         if settings:asTable().cefEnable == false then
-            if pollKillSwitch ~= nil then
-               pollKillSwitch()
-            end
-            return
-         end
          if settings:asTable().cefLiteMode == false and ((realTime - elapsedTime) >= (settings:asTable().cefMenuTickDelay)) then
             if core.isWorldPaused() and settings:asTable().cefEnableMenuUpdates == true then
                performConditionUpdate()
-            elseif pollKillSwitch == nil then
-               pollKillSwitch = time.runRepeatedly(performConditionUpdate, (settings:asTable().cefTickDelay), {})
             end
             elapsedTime = realTime
-         elseif settings:asTable().cefLiteMode == true and pollKillSwitch ~= nil then
-            pollKillSwitch()
-            pollKillSwitch = nil
          end
          realTime = core.getRealTime()
       end,
    },
    eventHandlers = {
-      addItem = function(data)
+      cefAddItem = function(data)
          local item = world.createObject(data.itemId, data.quantity)
          item:moveInto(types.Actor.inventory(data.actor))
       end,
-      removeItem = function(data)
+      cefRemoveItem = function(data)
          local inventory = types.Actor.inventory(data.actor)
          local item = inventory:find(data.itemId)
          item:remove(data.quantity)
       end,
-      updateVfx = function()
+      cefUpdateVfx = function()
          clearEffects()
       end,
-      settingsChanged = function()
-         updatePollRate()
+      cefMenuOpened = function()
+
+      end,
+      cefMainMenuClosed = function()
+         createUpdateTimer()
       end,
    },
 }

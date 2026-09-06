@@ -202,11 +202,11 @@ local function itemQuantity(itemId: string, actorInventory: core.Inventory): num
 end
 
 local function addItemToActor(itemId: string, quantity: number)
-	core.sendGlobalEvent("addItem", { actor = this.object, itemId = itemId, quantity = quantity })
+	core.sendGlobalEvent("cefAddItem", { actor = this.object, itemId = itemId, quantity = quantity })
 end
 
 local function removeItemFromActor(itemId: string, quantity: number)
-	core.sendGlobalEvent("removeItem", { actor = this.object, itemId = itemId, quantity = quantity })
+	core.sendGlobalEvent("cefRemoveItem", { actor = this.object, itemId = itemId, quantity = quantity })
 end
 
 local function applyCosmetics(fileName: string, effectId: string, effects: { CEFEffect })

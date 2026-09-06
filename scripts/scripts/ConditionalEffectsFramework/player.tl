@@ -39,18 +39,27 @@ local MENU_MODES <const>: { string: string } = {
 
 return {
 	eventHandlers = {
-		-- full credit to Ihyacinth and their mod, Sun's Dusk, which served as an example and inspiration for the logic checking if a player has slept
-		["UiModeChanged"] = function(data: { string: any })
-			if data.newMode == MENU_MODES.Rest and data.oldMode == nil then -- player opened rest menu
+	-- full credit to Ihyacinth and their mod, Sun's Dusk, which served as an example and inspiration for the logic checking if a player has slept
+	["UiModeChanged"] = function(data: { string: any })
+		if data.newMode ~= nil and data.oldMode == nil then
+			if data.newMode == MENU_MODES.Rest then -- player opened rest menu
 				activatedBed = core.getGameTime()
-			elseif data.newMode == nil and data.oldMode == MENU_MODES.Rest then -- player closed rest menu
-				if core.getGameTime() > activatedBed then -- will only be true if player has activated a bed to open the rest menu and has also passed time by sleeping. otherwise, will be false
-					core.sendGlobalEvent("updateVfx", {})
-				end
-			elseif data.oldMode == MENU_MODES.MainMenu and data.newMode == nil then -- player closed main menu
-				core.sendGlobalEvent("settingsChanged", {})
 			elseif data.newMode == MENU_MODES.MainMenu then -- player opened main menu
+				core.sendGlobalEvent("cefMenuOpened", {})
+			else -- player opened some other menu
+				core.sendGlobalEvent("cefMenuOpened", {})
+			end
+		elseif data.newMode == nil and data.oldMode ~= nil then
+			if data.oldMode == MENU_MODES.Rest then -- player closed rest menu
+				if core.getGameTime() > activatedBed then -- will only be true if player has activated a bed to open the rest menu and has also passed time by sleeping. otherwise, will be false
+					core.sendGlobalEvent("cefUpdateVfx", {})
+				end
+			elseif data.oldMode == MENU_MODES.MainMenu then -- player closed main menu
+				core.sendGlobalEvent("cefMainMenuClosed", {})
+			else -- player closed some other menu
+				core.sendGlobalEvent("cefMenuClosed", {})
 			end
 		end
+	end
 	},
 }
