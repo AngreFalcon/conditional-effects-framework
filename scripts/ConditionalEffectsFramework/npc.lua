@@ -270,7 +270,7 @@ local function applyItemEffect(item, dist, actorInventory)
          dist.itemPool[#dist.itemPool + 1] = { itemId = item.itemId, remove = item.remove, quantity = removeQuantity }
          removeItemFromActor(item.itemId, removeQuantity)
       end
-   elseif item.remove == false then
+   else
       local addQuantity = item.quantity or 1
       addItemToActor(item.itemId, addQuantity)
       dist.itemPool[#dist.itemPool + 1] = { itemId = item.itemId, remove = item.remove, quantity = addQuantity }

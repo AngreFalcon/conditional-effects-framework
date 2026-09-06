@@ -31,4 +31,8 @@ for _, plugin in ipairs(plugins) do
 	os.execute("echo F|xcopy /v \"" .. projDir .. "\\" .. plugin .. "\" \"" .. dest .. "\\" .. plugin .. "\"")
 end
 
-os.execute("7z a \"".. dest .. ".7z\" \"" .. dest .. "\\*\"")
+for folderName in lfs.dir(projDir .. "\\dist") do
+	if folderName ~= "." and folderName ~= ".." and string.sub(folderName, -3) ~= ".7z" then
+		os.execute("7z a \"" .. projDir .. "\\dist\\" .. folderName .. ".7z\" \"" .. projDir .. "\\dist\\" .. folderName .. "\\*\"")	
+	end
+end
