@@ -144,7 +144,9 @@ local function clearEffects()
 end
 
 local function updatePollRate()
-   pollKillSwitch()
+   if pollKillSwitch ~= nil then
+      pollKillSwitch()
+   end
    pollKillSwitch = time.runRepeatedly(performConditionUpdate, (settings:asTable().cefTickDelay), {})
 end
 
