@@ -51,24 +51,30 @@ local interface CEFItem
 	itemId: string
 	quantity: number
 	remove: boolean
+end
+
+local interface CEFItemPool
+	itemPool: { CEFItem }
 	random: boolean
+	randomSeed: integer
 end
 
 local interface CEFConfig
 	conditions: { CEFCondition }
 	effects: { CEFEffect }
 	spells: { CEFSpell }
-	items: { CEFItem }
+	items: { CEFItemPool }
 end
 
 local interface DistributionTable
 	effects: { string }
 	spells: { CEFSpell }
-	items: { CEFItem }
+	items: { CEFItemPool }
 end
 
 local interface SaveData
 	distTable: { string: DistributionTable }
+	itemPoolSeed: integer
 end
 -- end interfaces
 
@@ -253,29 +259,41 @@ local function undoSpellDistribution(fileName: string, effectId: string)
 	distTable[fileName .. effectId].spells = nil
 end
 
-local function applyItemDistribution(fileName: string, effectId: string, items: { CEFItem })
+local function applyItemEffect(item: CEFItem, dist: CEFItemPool, actorInventory: core.Inventory)
+	if item.remove == true then
+		local inventoryCount = itemQuantity(item.itemId, actorInventory)
+		if inventoryCount ~= nil then
+			local removeQuantity: number = item.quantity or 1
+			if removeQuantity > inventoryCount then
+				removeQuantity = inventoryCount
+			end
+			dist.itemPool[#dist.itemPool + 1] = { itemId = item.itemId, remove = item.remove, quantity = removeQuantity }
+			removeItemFromActor(item.itemId, removeQuantity)
+		end
+	elseif item.remove == false then
+		local addQuantity: number = item.quantity or 1
+		addItemToActor(item.itemId, addQuantity)
+		dist.itemPool[#dist.itemPool + 1] = { itemId = item.itemId, remove = item.remove, quantity = addQuantity }
+	end
+end
+
+local function applyItemDistribution(fileName: string, effectId: string, items: { CEFItemPool })
 	distTable[fileName .. effectId].items = {}
 	local actorInventory = types.Actor.inventory(this as core.GameObject)
-	for _, item in ipairs(items) do
-		local itemIdType = type(item.itemId)
-		if itemIdType == "string" then
-			if item.remove == true and (item.random == nil or item.random == false) then
-				local inventoryCount = itemQuantity(item.itemId, actorInventory)
-				local removeQuantity: number = item.quantity
-				if item.quantity > inventoryCount then
-					removeQuantity = inventoryCount
-				end
-				distTable[fileName .. effectId].items[#distTable[fileName .. effectId].items + 1] = { itemId = item.itemId, remove = item.remove, quantity = removeQuantity }
-				removeItemFromActor(item.itemId, removeQuantity)
-			elseif item.remove == false then
-				addItemToActor(item.itemId, item.quantity)
-				distTable[fileName .. effectId].items[#distTable[fileName .. effectId].items + 1] = { itemId = item.itemId, remove = item.remove, quantity = item.quantity }
+	for _, itemPool in ipairs(items) do
+		distTable[fileName .. effectId].items[#distTable[fileName .. effectId].items + 1] = { random = itemPool.random, itemPool = {}}
+		local distTableElement = distTable[fileName .. effectId].items[#distTable[fileName .. effectId].items]
+		if itemPool.random == true then
+			if distTableElement.randomSeed == nil then
+				distTableElement.randomSeed = math.random()
 			end
-		elseif itemIdType == "table" then
-			if #(item.itemId as { any }) > 0 then -- itemId is a list of items
-			
-			else -- itemId is a table of items, whose keys should be numerical and represent the random chance of that particular item being selected from the item pool
-
+			math.randomseed(distTableElement.randomSeed)
+			local randomInd = math.floor(math.random(1, #itemPool.itemPool))
+			local item = itemPool.itemPool[randomInd]
+			applyItemEffect(item, distTableElement, actorInventory)
+		else
+			for _, item in ipairs(itemPool.itemPool) do
+				applyItemEffect(item, distTableElement, actorInventory)
 			end
 		end
 	end
@@ -283,15 +301,17 @@ end
 
 local function undoItemDistribution(fileName: string, effectId: string)
 	local actorInventory = types.Actor.inventory(this as core.GameObject)
-	for _, item in ipairs(distTable[fileName .. effectId].items) do
-		if item.remove == true then
-			addItemToActor(item.itemId, item.quantity)
-		else
-			local removeQuantity = itemQuantity(item.itemId, actorInventory)
-			if removeQuantity > item.quantity then
-				removeQuantity = item.quantity
+	for _, itemPool in ipairs(distTable[fileName .. effectId].items) do
+		for _, item in ipairs(itemPool.itemPool) do
+			if item.remove == true then
+				addItemToActor(item.itemId, item.quantity)
+			else
+				local removeQuantity = itemQuantity(item.itemId, actorInventory)
+				if removeQuantity > item.quantity then
+					removeQuantity = item.quantity
+				end
+				removeItemFromActor(item.itemId, removeQuantity)
 			end
-			removeItemFromActor(item.itemId, removeQuantity)
 		end
 	end
 	distTable[fileName .. effectId].items = nil
@@ -650,7 +670,6 @@ return {
 				effectWhitelist = {}
 				buildEffectWhitelist()
 			end
-			loopThroughEffects()
 		end,
 		onUpdate = function()
 		end,
