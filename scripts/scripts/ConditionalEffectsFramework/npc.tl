@@ -681,5 +681,8 @@ return {
 			end
 			checkNearby()
 		end,
+		cefRemoveEffects = function()
+			removeEffects()
+		end,
 	},
 }

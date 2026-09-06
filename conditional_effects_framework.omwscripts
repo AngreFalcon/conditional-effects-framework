@@ -1,4 +1,5 @@
 GLOBAL: scripts/ConditionalEffectsFramework/global.lua
+GLOBAL: scripts/ConditionalEffectsFramework/settings.lua
 PLAYER, NPC: scripts/ConditionalEffectsFramework/npc.lua
 PLAYER: scripts/ConditionalEffectsFramework/settings-page.lua
-GLOBAL: scripts/ConditionalEffectsFramework/settings.lua
+PLAYER: scripts/ConditionalEffectsFramework/player.lua
