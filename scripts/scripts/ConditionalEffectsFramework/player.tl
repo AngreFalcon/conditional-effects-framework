@@ -44,8 +44,6 @@ return {
 		if data.newMode ~= nil and data.oldMode == nil then
 			if data.newMode == MENU_MODES.Rest then -- player opened rest menu
 				activatedBed = core.getGameTime()
-			elseif data.newMode == MENU_MODES.MainMenu then -- player opened main menu
-				core.sendGlobalEvent("cefMenuOpened", {})
 			else -- player opened some other menu
 				core.sendGlobalEvent("cefMenuOpened", {})
 			end

@@ -677,8 +677,6 @@ return {
             buildEffectWhitelist()
          end
       end,
-      onUpdate = function()
-      end,
    },
    eventHandlers = {
       cefUpdate = function()

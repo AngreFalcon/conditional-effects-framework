@@ -2,31 +2,30 @@ local core = require("openmw.core")
 local world = require("openmw.world")
 local storage = require("openmw.storage")
 local vfs = require('openmw.vfs')
-local time = require('openmw_aux.time')
 local json = require('scripts.lib.json')
 local types = require('openmw.types')
 local async = require('openmw.async')
 
-local ITEM_INTERFACES <const>: { { any } } = {
-	types.Apparatus.records,
-	types.Armor.records,
-	types.Book.records,
-	types.Clothing.records,
-	types.Ingredient.records,
-	types.Light.records,
-	types.Lockpick.records,
-	types.Miscellaneous.records,
-	types.Potion.records,
-	types.Probe.records,
-	types.Repair.records,
-	types.Weapon.records,
+local ITEM_INTERFACES <const>: { any } = {
+	types.Apparatus,
+	types.Armor,
+	types.Book,
+	types.Clothing,
+	types.Ingredient,
+	types.Light,
+	types.Lockpick,
+	types.Miscellaneous,
+	types.Potion,
+	types.Probe,
+	types.Repair,
+	types.Weapon,
 }
 
+local settings: storage.StorageSection
+local timerRunning: boolean = false
 local realTime: number = core.getRealTime()
 local elapsedTime: number = 0
-local settings: storage.StorageSection
-local pollKillSwitch: function = nil
-local timerRunning: boolean = false
+local actorInteracted: core.GameObject = nil
 
 local function syncMWVars(actor: core.GameObject) -- Get the current state of all local mwscript variables associated with the provided actor
 	if actor ~= nil then
@@ -81,8 +80,8 @@ local function findSpellByID(spellId: string): core.Spell
 end
 
 local function validateItemId(itemId: string): boolean
-	for _, itemRecords in ipairs(ITEM_INTERFACES) do
-		if (itemRecords as { string: any })[itemId] ~= nil then
+	for _, itemRecord in ipairs(ITEM_INTERFACES as { { string: any } }) do
+		if (itemRecord.records as { string: any })[itemId] ~= nil then
 			return true
 		end
 	end
@@ -114,31 +113,31 @@ local function validateEffectIDs()
 	end
 end
 
+local function sendUpdateEvent(actor: core.GameObject)
+	if types.NPC.objectIsInstance(actor) == true then
+		syncMWVars(actor)
+		actor:sendEvent("cefUpdate", {})
+	end
+end
+
 local function performConditionUpdate()
 	for _, actor in ipairs(world.activeActors) do
-		if types.NPC.objectIsInstance(actor) == true then
-			syncMWVars(actor)
-			actor:sendEvent("cefUpdate", {})
-		end
+		sendUpdateEvent(actor)
 	end
 end
 
 local function createUpdateTimer()
-	--[[if settings:asTable().cefEnable == false then
+	if settings:asTable().cefEnable == false then
 		return
 	end
-	if core.isWorldPaused() == false then
-		async:newUnsavableSimulationTimer((settings:asTable().cefTickDelay as number), performConditionUpdate)
-	end--]]
 
-	if timerRunning == true then --pollKillSwitch ~= nil then
-		--pollKillSwitch()
+	if timerRunning == true then
+		performConditionUpdate()
 		timerRunning = false
 	end
 
-	if timerRunning == false and settings:asTable().cefEnable == true and settings:asTable().cefLiteMode == false then
-		async:newUnsavableSimulationTimer((settings:asTable().cefTickDelay as number), performConditionUpdate)
-		--pollKillSwitch = time.runRepeatedly(performConditionUpdate, (settings:asTable().cefTickDelay as number), {})
+	if timerRunning == false and settings:asTable().cefLiteMode == false then
+		async:newUnsavableSimulationTimer((settings:asTable().cefTickDelay as number), createUpdateTimer)
 		timerRunning = true
 	end
 end
@@ -163,10 +162,8 @@ return {
 			local configData = loadConfigFiles()
 			local parsedConfigData = parseConfigFiles(configData)
 			storeConfigFiles(parsedConfigData)
+			settings = storage.globalSection("SettingsGeneralConditionalEffectsFramework")
 			validateEffectIDs()
-			if settings == nil then
-				settings = storage.globalSection("SettingsGeneralConditionalEffectsFramework")
-			end
 			createUpdateTimer()
 		end,
       	onActorActive = function(actor: core.GameObject)
@@ -176,14 +173,24 @@ return {
 			syncMWVars(actor)
 			storage.globalSection(actor.id):setLifeTime(storage.LIFE_TIME.GameSession as storage.LifeTime)
       	end,
+		onActivate = function(object: core.GameObject, actor: core.GameObject)
+			if types.Player.objectIsInstance(actor) ~= true or types.NPC.objectIsInstance(object) ~= true then
+				return
+			end
+			actorInteracted = object
+		end,
 		onUpdate = function()
-			if settings:asTable().cefLiteMode == false and ((realTime - elapsedTime) >= (settings:asTable().cefMenuTickDelay as number)) then
-				if core.isWorldPaused() and settings:asTable().cefEnableMenuUpdates == true then
-					performConditionUpdate()
+			if actorInteracted == nil then
+				return
+			else
+				realTime = core.getRealTime()
+			end
+			if ((realTime - elapsedTime) >= (settings:asTable().cefMenuTickDelay as number)) then
+				if core.isWorldPaused() == true and settings:asTable().cefEnable == true and settings:asTable().cefLiteMode == false and settings:asTable().cefEnableMenuUpdates == true then
+					actorInteracted:sendEvent("cefUpdate", {})
 				end
 				elapsedTime = realTime
 			end
-			realTime = core.getRealTime()
 		end,
    	},
 	eventHandlers = {
@@ -196,14 +203,17 @@ return {
 			local item = inventory:find(data.itemId)
 			item:remove(data.quantity)
 		end,
-		cefUpdateVfx = function()
-			clearEffects()
-		end,
 		cefMenuOpened = function()
 			
 		end,
+		cefUpdateVfx = function()
+			clearEffects()
+		end,
 		cefMainMenuClosed = function()
 			createUpdateTimer()
+		end,
+		cefMenuClosed = function()
+			actorInteracted = nil
 		end,
 	},
 }
