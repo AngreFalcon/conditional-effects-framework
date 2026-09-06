@@ -260,6 +260,10 @@ local function undoSpellDistribution(fileName, effectId)
 end
 
 local function applyItemEffect(item, dist, actorInventory)
+   if item.itemId == "nil" then
+      dist.itemPool[#dist.itemPool + 1] = { itemId = item.itemId, remove = nil, quantity = nil }
+      return
+   end
    if item.remove == true then
       local inventoryCount = itemQuantity(item.itemId, actorInventory)
       if inventoryCount ~= nil then
@@ -303,14 +307,16 @@ local function undoItemDistribution(fileName, effectId)
    local actorInventory = types.Actor.inventory(this)
    for _, itemPool in ipairs(distTable[fileName .. effectId].items) do
       for _, item in ipairs(itemPool.itemPool) do
-         if item.remove == true then
-            addItemToActor(item.itemId, item.quantity)
-         else
-            local removeQuantity = itemQuantity(item.itemId, actorInventory)
-            if removeQuantity > item.quantity then
-               removeQuantity = item.quantity
+         if item.itemId ~= "nil" then
+            if item.remove == true then
+               addItemToActor(item.itemId, item.quantity)
+            else
+               local removeQuantity = itemQuantity(item.itemId, actorInventory)
+               if removeQuantity > item.quantity then
+                  removeQuantity = item.quantity
+               end
+               removeItemFromActor(item.itemId, removeQuantity)
             end
-            removeItemFromActor(item.itemId, removeQuantity)
          end
       end
    end

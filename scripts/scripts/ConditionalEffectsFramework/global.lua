@@ -106,18 +106,12 @@ local function validateEffectIDs()
                if itemIdType == "string" and validateItemId(item.itemId) == false then
                   print("Item could not be found by ID: " .. item.itemId .. " in file: " .. fileName .. " for effect: " .. effectId)
                elseif itemIdType == "table" then
-                  if #item.itemId > 0 then
-                     for _, v in ipairs(item.itemId) do
-                        if v ~= "nil" and validateItemId(v) == false then
-                           print("Item could not be found by ID: " .. v .. " in file: " .. fileName .. " for effect: " .. effectId)
-                        end
+                  local k, v = next(item.itemId)
+                  while k do
+                     if v ~= "nil" and validateItemId(v) == false then
+                        print("Item could not be found by ID: " .. v .. " in file: " .. fileName .. " for effect: " .. effectId)
                      end
-                  else
-                     for _, v in pairs(item.itemId) do
-                        if v ~= "nil" and validateItemId(v) == false then
-                           print("Item could not be found by ID: " .. v .. " in file: " .. fileName .. " for effect: " .. effectId)
-                        end
-                     end
+                     k, v = next(item.itemId, k)
                   end
                end
             end
