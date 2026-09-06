@@ -127,12 +127,26 @@ local function validateEffectIDs()
 end
 
 local function performConditionUpdate()
+	print("test")
 	for _, actor in ipairs(world.activeActors) do
 		if types.NPC.objectIsInstance(actor) == true then
 			syncMWVars(actor)
 			actor:sendEvent("cefUpdate", {})
 		end
 	end
+end
+
+local function clearEffects()
+	for _, actor in ipairs(world.activeActors) do
+		if types.NPC.objectIsInstance(actor) == true then
+			actor:sendEvent("cefRemoveEffects", {})
+		end
+	end
+end
+
+local function updatePollRate()
+	pollKillSwitch()
+	pollKillSwitch = time.runRepeatedly(performConditionUpdate, (settings:asTable().cefTickDelay as number), {})
 end
 
 local interface ItemData
@@ -190,6 +204,12 @@ return {
 			local inventory = types.Actor.inventory(data.actor)
 			local item = inventory:find(data.itemId)
 			item:remove(data.quantity)
+		end,
+		updateVfx = function()
+			clearEffects()
+		end,
+		settingsChanged = function()
+			updatePollRate()
 		end,
 	},
 }
