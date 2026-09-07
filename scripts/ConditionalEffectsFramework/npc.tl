@@ -74,7 +74,7 @@ end
 
 local interface SaveData
 	distTable: { string: DistributionTable }
-	itemPoolSeed: integer
+	effectWhitelist: { string: { string: CEFConfig } }
 end
 -- end interfaces
 
@@ -549,6 +549,21 @@ local function checkStaticConditions(effectId: string, conditions: { CEFConditio
 	return result
 end
 
+local function buildEffectWhitelist()
+	local newWhitelist: { string: { string: CEFConfig } } = {}
+	for fileName, contents in pairs(configData:asTable() as { string: { string: CEFConfig } }) do
+		for effectId, effect in pairs(contents as { string: CEFConfig }) do
+			if newWhitelist[fileName] == nil then
+				newWhitelist[fileName] = {}
+			end
+			if checkStaticConditions(effectId, effect.conditions) == true then
+				newWhitelist[fileName][effectId] = effect
+			end
+		end
+	end
+	effectWhitelist = newWhitelist
+end
+
 local function checkConditions(effectId: string, conditions: { CEFCondition }): boolean
 	local result: boolean = true
 	for _, v1 in ipairs(conditions) do
@@ -609,6 +624,10 @@ local function removeEffects(fileName: string, effectId: string, effect: CEFConf
 end
 
 local function loopThroughEffects()
+	if effectWhitelist == nil then
+		effectWhitelist = {}
+		async:newUnsavableSimulationTimer(settings:asTable().cefTickDelay as number, buildEffectWhitelist)
+	end
 	for fileName, contents in pairs(effectWhitelist) do
 		for effectId, effect in pairs(contents as { string: CEFConfig }) do
 			if settings:asTable().cefEnable == true and (configSettings:asTable()["configToggle" .. fileName] as { string: boolean })[effectId] == true then
@@ -645,28 +664,17 @@ local function clearVfx()
 	end
 end
 
-local function buildEffectWhitelist()
-	for fileName, contents in pairs(configData:asTable() as { string: { string: CEFConfig } }) do
-		for effectId, effect in pairs(contents as { string: CEFConfig }) do
-			if effectWhitelist[fileName] == nil then
-				effectWhitelist[fileName] = {}
-			end
-			if checkStaticConditions(effectId, effect.conditions) == true then
-				effectWhitelist[fileName][effectId] = effect
-			end
-		end
-	end
-end
-
 return {
    	engineHandlers = {
 		onSave = function(): SaveData
 			local saveData: SaveData = {}
 			saveData.distTable = distTable
+			saveData.effectWhitelist = effectWhitelist
 			return saveData
 		end,
 		onLoad = function(saveData: SaveData)
 			distTable = saveData.distTable
+			effectWhitelist = saveData.effectWhitelist
 		end,
 		onInactive = function()
 			clearVfx()
@@ -676,11 +684,6 @@ return {
 			varsTable = storage.globalSection(this.object.id)
 			configSettings = storage.globalSection("SettingsConditionalEffectsFrameworkConfigs")
 			settings = storage.globalSection("SettingsGeneralConditionalEffectsFramework")
-			if effectWhitelist == nil then
-				effectWhitelist = {}
-				buildEffectWhitelist()
-			end
-			checkNearby()
 		end,
    	},
 	eventHandlers = {

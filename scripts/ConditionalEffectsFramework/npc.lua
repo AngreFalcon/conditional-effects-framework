@@ -549,6 +549,21 @@ local function checkStaticConditions(effectId, conditions)
    return result
 end
 
+local function buildEffectWhitelist()
+   local newWhitelist = {}
+   for fileName, contents in pairs(configData:asTable()) do
+      for effectId, effect in pairs(contents) do
+         if newWhitelist[fileName] == nil then
+            newWhitelist[fileName] = {}
+         end
+         if checkStaticConditions(effectId, effect.conditions) == true then
+            newWhitelist[fileName][effectId] = effect
+         end
+      end
+   end
+   effectWhitelist = newWhitelist
+end
+
 local function checkConditions(effectId, conditions)
    local result = true
    for _, v1 in ipairs(conditions) do
@@ -609,6 +624,10 @@ local function removeEffects(fileName, effectId, effect)
 end
 
 local function loopThroughEffects()
+   if effectWhitelist == nil then
+      effectWhitelist = {}
+      async:newUnsavableSimulationTimer(settings:asTable().cefTickDelay, buildEffectWhitelist)
+   end
    for fileName, contents in pairs(effectWhitelist) do
       for effectId, effect in pairs(contents) do
          if settings:asTable().cefEnable == true and (configSettings:asTable()["configToggle" .. fileName])[effectId] == true then
@@ -645,28 +664,17 @@ local function clearVfx()
    end
 end
 
-local function buildEffectWhitelist()
-   for fileName, contents in pairs(configData:asTable()) do
-      for effectId, effect in pairs(contents) do
-         if effectWhitelist[fileName] == nil then
-            effectWhitelist[fileName] = {}
-         end
-         if checkStaticConditions(effectId, effect.conditions) == true then
-            effectWhitelist[fileName][effectId] = effect
-         end
-      end
-   end
-end
-
 return {
    engineHandlers = {
       onSave = function()
          local saveData = {}
          saveData.distTable = distTable
+         saveData.effectWhitelist = effectWhitelist
          return saveData
       end,
       onLoad = function(saveData)
          distTable = saveData.distTable
+         effectWhitelist = saveData.effectWhitelist
       end,
       onInactive = function()
          clearVfx()
@@ -676,11 +684,6 @@ return {
          varsTable = storage.globalSection(this.object.id)
          configSettings = storage.globalSection("SettingsConditionalEffectsFrameworkConfigs")
          settings = storage.globalSection("SettingsGeneralConditionalEffectsFramework")
-         if effectWhitelist == nil then
-            effectWhitelist = {}
-            buildEffectWhitelist()
-         end
-         checkNearby()
       end,
    },
    eventHandlers = {
