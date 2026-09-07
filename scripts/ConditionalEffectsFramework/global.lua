@@ -1,4 +1,4 @@
-local _tl_compat; if (tonumber((_VERSION or ''):match('[%d.]*$')) or 0) < 5.3 then local p, m = pcall(require, 'compat53.module'); if p then _tl_compat = m end end; local ipairs = _tl_compat and _tl_compat.ipairs or ipairs; local pairs = _tl_compat and _tl_compat.pairs or pairs; local string = _tl_compat and _tl_compat.string or string; local table = _tl_compat and _tl_compat.table or table; local core = require("openmw.core")
+local _tl_compat; if (tonumber((_VERSION or ''):match('[%d.]*$')) or 0) < 5.3 then local p, m = pcall(require, 'compat53.module'); if p then _tl_compat = m end end; local ipairs = _tl_compat and _tl_compat.ipairs or ipairs; local pairs = _tl_compat and _tl_compat.pairs or pairs; local string = _tl_compat and _tl_compat.string or string; local core = require("openmw.core")
 local world = require("openmw.world")
 local storage = require("openmw.storage")
 local vfs = require('openmw.vfs')
@@ -170,6 +170,16 @@ local function loadSettings()
    end
 end
 
+local function checkSizeOfTable(t)
+   local size = 0
+   local k, v = next(t)
+   while v ~= nil do
+      k, v = next(t, k)
+      size = size + 1
+   end
+   return size
+end
+
 
 
 
@@ -196,20 +206,20 @@ return {
          if settings:asTable().cefEnable == false or settings:asTable().cefLiteMode == true or types.Player.objectIsInstance(actor) ~= true or types.NPC.objectIsInstance(object) ~= true then
             return
          end
-         table.insert(actorsInMenu, { player = actor, actor = object })
+         actorsInMenu[actor.id] = { player = actor, actor = object }
       end,
       onUpdate = function()
-         if next(actorsInMenu) ~= nil then
+         if checkSizeOfTable(actorsInMenu) == 0 then
             return
          else
             realTime = core.getRealTime()
          end
          if core.isWorldPaused() == true and ((realTime - elapsedTime) >= (settings:asTable().cefMenuTickDelay)) then
             if settings:asTable().cefEnableMenuUpdates == true then
-               for _, v in ipairs(actorsInMenu) do
-                  v.player:sendEvent("cefUpdate", {})
-                  if v.actor ~= nil then
-                     v.actor:sendEvent("cefUpdate", {})
+               for _, actors in pairs(actorsInMenu) do
+                  sendUpdateEvent(actors.player)
+                  if actors.actor ~= nil then
+                     sendUpdateEvent(actors.actor)
                   end
                end
             end
@@ -228,7 +238,9 @@ return {
          item:remove(data.quantity)
       end,
       cefMenuOpened = function(data)
-         table.insert(actorsInMenu, { player = data.actor })
+         if actorsInMenu[data.actor.id] == nil then
+            actorsInMenu[data.actor.id] = { player = data.actor }
+         end
       end,
       cefUpdateVfx = function()
          clearVfx()
@@ -240,21 +252,8 @@ return {
             disableAllEffects()
          end
       end,
-      cefInventoryClosed = function(data)
-         for i, actors in ipairs(actorsInMenu) do
-            if actors.player == data.actor then
-               table.remove(actorsInMenu, i)
-               break
-            end
-         end
-      end,
       cefMenuClosed = function(data)
-         for i, actors in ipairs(actorsInMenu) do
-            if actors.player == data.actor then
-               table.remove(actorsInMenu, i)
-               break
-            end
-         end
+         actorsInMenu[data.actor.id] = nil
       end,
    },
 }

@@ -43,22 +43,20 @@ return {
 
       ["UiModeChanged"] = function(data)
          if data.newMode ~= nil and data.oldMode == nil then
+            core.sendGlobalEvent("cefMenuOpened", { actor = this.object })
+
             if data.newMode == MENU_MODES.Rest then
                activatedBed = core.getGameTime()
-            else
-               core.sendGlobalEvent("cefMenuOpened", { actor = this.object })
             end
          elseif data.newMode == nil and data.oldMode ~= nil then
+            core.sendGlobalEvent("cefMenuClosed", { actor = this.object })
+
             if data.oldMode == MENU_MODES.Rest then
                if core.getGameTime() > activatedBed then
                   core.sendGlobalEvent("cefUpdateVfx", {})
                end
             elseif data.oldMode == MENU_MODES.MainMenu then
                core.sendGlobalEvent("cefMainMenuClosed", {})
-            elseif data.oldMode == MENU_MODES.Interface then
-               core.sendGlobalEvent("cefInventoryClosed", { actor = this.object })
-            else
-               core.sendGlobalEvent("cefMenuClosed", { actor = this.object })
             end
          end
       end,

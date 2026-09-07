@@ -43,22 +43,20 @@ return {
 	-- full credit to Ihyacinth and their mod, Sun's Dusk, which served as an example and inspiration for the logic checking if a player has slept
 	["UiModeChanged"] = function(data: { string: any })
 		if data.newMode ~= nil and data.oldMode == nil then
+			core.sendGlobalEvent("cefMenuOpened", { actor = this.object })
+
 			if data.newMode == MENU_MODES.Rest then -- player opened rest menu
 				activatedBed = core.getGameTime()
-			else -- player opened some other menu
-				core.sendGlobalEvent("cefMenuOpened", { actor = this.object })
 			end
 		elseif data.newMode == nil and data.oldMode ~= nil then
+			core.sendGlobalEvent("cefMenuClosed", { actor = this.object })
+
 			if data.oldMode == MENU_MODES.Rest then -- player closed rest menu
 				if core.getGameTime() > activatedBed then -- will only be true if player has activated a bed to open the rest menu and has also passed time by sleeping. otherwise, will be false
 					core.sendGlobalEvent("cefUpdateVfx", {})
 				end
 			elseif data.oldMode == MENU_MODES.MainMenu then -- player closed main menu
 				core.sendGlobalEvent("cefMainMenuClosed", {})
-			elseif data.oldMode == MENU_MODES.Interface then -- player closed inventory menu
-				core.sendGlobalEvent("cefInventoryClosed", { actor = this.object })
-			else -- player closed some other menu
-				core.sendGlobalEvent("cefMenuClosed", { actor = this.object })
 			end
 		end
 	end

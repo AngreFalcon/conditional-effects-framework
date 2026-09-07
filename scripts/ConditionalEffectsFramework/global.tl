@@ -26,7 +26,7 @@ local loadSettingsTickDelay: number = 0.5
 local timerRunning: boolean = false
 local realTime: number = core.getRealTime()
 local elapsedTime: number = 0
-local actorsInMenu: { { string: core.GameObject } } = {}
+local actorsInMenu: { string: { string: core.GameObject } } = {}
 
 local function syncMWVars(actor: core.GameObject) -- Get the current state of all local mwscript variables associated with the provided actor
 	if actor ~= nil then
@@ -170,6 +170,16 @@ local function loadSettings()
 	end
 end
 
+local function checkSizeOfTable(t: { any: any }): number
+	local size: number = 0
+	local k, v = next(t)
+	while v ~= nil do
+		k, v = next(t, k)
+		size = size + 1
+	end
+	return size
+end
+
 local interface ItemData
 	actor: core.GameObject
 	itemId: string
@@ -196,20 +206,20 @@ return {
 			if settings:asTable().cefEnable == false or settings:asTable().cefLiteMode == true or types.Player.objectIsInstance(actor) ~= true or types.NPC.objectIsInstance(object) ~= true then
 				return
 			end
-			table.insert(actorsInMenu, { player = actor, actor = object })
+			actorsInMenu[actor.id] = { player = actor, actor = object}
 		end,
 		onUpdate = function()
-			if next(actorsInMenu) ~= nil then
+			if checkSizeOfTable(actorsInMenu) == 0 then
 				return
 			else
 				realTime = core.getRealTime()
 			end
 			if core.isWorldPaused() == true and ((realTime - elapsedTime) >= (settings:asTable().cefMenuTickDelay as number)) then
 				if settings:asTable().cefEnableMenuUpdates == true then
-					for _, v in ipairs(actorsInMenu) do
-						v.player:sendEvent("cefUpdate", {})
-						if v.actor ~= nil then
-							v.actor:sendEvent("cefUpdate", {})
+					for _, actors in pairs(actorsInMenu) do
+						sendUpdateEvent(actors.player)
+						if actors.actor ~= nil then	
+							sendUpdateEvent(actors.actor)
 						end
 					end
 				end
@@ -228,7 +238,9 @@ return {
 			item:remove(data.quantity)
 		end,
 		cefMenuOpened = function(data: { string: core.GameObject })
-			table.insert(actorsInMenu, { player = data.actor })
+			if actorsInMenu[data.actor.id] == nil then
+				actorsInMenu[data.actor.id] = { player = data.actor }
+			end
 		end,
 		cefUpdateVfx = function()
 			clearVfx()
@@ -240,21 +252,8 @@ return {
 				disableAllEffects()
 			end
 		end,
-		cefInventoryClosed = function(data: { string: core.GameObject })
-			for i, actors in ipairs(actorsInMenu) do
-				if actors.player == data.actor then
-					table.remove(actorsInMenu, i)
-					break
-				end
-			end
-		end,
 		cefMenuClosed = function(data: { string: core.GameObject })
-			for i, actors in ipairs(actorsInMenu) do
-				if actors.player == data.actor then
-					table.remove(actorsInMenu, i)
-					break
-				end
-			end
+			actorsInMenu[data.actor.id] = nil
 		end,
 	},
 }
