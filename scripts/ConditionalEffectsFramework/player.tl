@@ -1,40 +1,41 @@
 local core = require('openmw.core')
+local this = require('openmw.self')
 
 local activatedBed: number = 0
 
 local MENU_MODES <const>: { string: string } = {
-  Loading = "Loading",
-  LoadingWallpaper = "LoadingWallpaper",
-  QuickKeysMenu = "QuickKeysMenu",
-  SpellBuying = "SpellBuying",
-  Rest = "Rest",
-  Jail = "Jail",
-  ChargenClassCreate = "ChargenClassCreate",
-  Journal = "Journal",
-  Repair = "Repair",
-  Scroll = "Scroll",
-  ChargenRace = "ChargenRace",
-  Companion = "Companion",
-  MainMenu = "MainMenu",
-  Alchemy = "Alchemy",
-  Dialogue = "Dialogue",
-  Barter = "Barter",
-  Container = "Container",
-  Travel = "Travel",
-  SpellCreation = "SpellCreation",
-  Enchanting = "Enchanting",
-  Recharge = "Recharge",
-  Training = "Training",
-  MerchantRepair = "MerchantRepair",
-  LevelUp = "LevelUp",
-  ChargenName = "ChargenName",
-  Book = "Book",
-  ChargenBirth = "ChargenBirth",
-  ChargenClass = "ChargenClass",
-  ChargenClassGenerate = "ChargenClassGenerate",
-  ChargenClassPick = "ChargenClassPick",
-  Interface = "Interface",
-  ChargenClassReview = "ChargenClassReview",
+	Loading = "Loading",
+	LoadingWallpaper = "LoadingWallpaper",
+	QuickKeysMenu = "QuickKeysMenu",
+	SpellBuying = "SpellBuying",
+	Rest = "Rest",
+	Jail = "Jail",
+	ChargenClassCreate = "ChargenClassCreate",
+	Journal = "Journal",
+	Repair = "Repair",
+	Scroll = "Scroll",
+	ChargenRace = "ChargenRace",
+	Companion = "Companion",
+	MainMenu = "MainMenu",
+	Alchemy = "Alchemy",
+	Dialogue = "Dialogue",
+	Barter = "Barter",
+	Container = "Container",
+	Travel = "Travel",
+	SpellCreation = "SpellCreation",
+	Enchanting = "Enchanting",
+	Recharge = "Recharge",
+	Training = "Training",
+	MerchantRepair = "MerchantRepair",
+	LevelUp = "LevelUp",
+	ChargenName = "ChargenName",
+	Book = "Book",
+	ChargenBirth = "ChargenBirth",
+	ChargenClass = "ChargenClass",
+	ChargenClassGenerate = "ChargenClassGenerate",
+	ChargenClassPick = "ChargenClassPick",
+	Interface = "Interface",
+	ChargenClassReview = "ChargenClassReview",
 }
 
 return {
@@ -45,7 +46,7 @@ return {
 			if data.newMode == MENU_MODES.Rest then -- player opened rest menu
 				activatedBed = core.getGameTime()
 			else -- player opened some other menu
-				core.sendGlobalEvent("cefMenuOpened", {})
+				core.sendGlobalEvent("cefMenuOpened", { actor = this.object })
 			end
 		elseif data.newMode == nil and data.oldMode ~= nil then
 			if data.oldMode == MENU_MODES.Rest then -- player closed rest menu
@@ -54,8 +55,10 @@ return {
 				end
 			elseif data.oldMode == MENU_MODES.MainMenu then -- player closed main menu
 				core.sendGlobalEvent("cefMainMenuClosed", {})
+			elseif data.oldMode == MENU_MODES.Interface then -- player closed inventory menu
+				core.sendGlobalEvent("cefInventoryClosed", { actor = this.object })
 			else -- player closed some other menu
-				core.sendGlobalEvent("cefMenuClosed", {})
+				core.sendGlobalEvent("cefMenuClosed", { actor = this.object })
 			end
 		end
 	end

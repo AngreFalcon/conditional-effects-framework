@@ -21,11 +21,12 @@ local ITEM_INTERFACES <const>: { any } = {
 	types.Weapon,
 }
 
-local settings: storage.StorageSection
+local settings: storage.StorageSection = storage.globalSection("SettingsGeneralConditionalEffectsFramework")
+local loadSettingsTickDelay: number = 0.5
 local timerRunning: boolean = false
 local realTime: number = core.getRealTime()
 local elapsedTime: number = 0
-local actorInteracted: core.GameObject = nil
+local actorsInMenu: { { string: core.GameObject } } = {}
 
 local function syncMWVars(actor: core.GameObject) -- Get the current state of all local mwscript variables associated with the provided actor
 	if actor ~= nil then
@@ -126,27 +127,46 @@ local function performConditionUpdate()
 	end
 end
 
-local function createUpdateTimer()
-	if settings:asTable().cefEnable == false then
-		return
-	end
-
-	if timerRunning == true then
+local function regenerateUpdateTimer()
+	if settings:asTable().cefEnable == true and settings:asTable().cefLiteMode == false then
 		performConditionUpdate()
+		async:newUnsavableSimulationTimer((settings:asTable().cefTickDelay as number), regenerateUpdateTimer)
+	else
 		timerRunning = false
 	end
+end
 
-	if timerRunning == false and settings:asTable().cefLiteMode == false then
-		async:newUnsavableSimulationTimer((settings:asTable().cefTickDelay as number), createUpdateTimer)
+local function createUpdateTimer()
+	if timerRunning == false then
+		async:newUnsavableSimulationTimer((settings:asTable().cefTickDelay as number), regenerateUpdateTimer)
 		timerRunning = true
 	end
 end
 
-local function clearEffects()
+local function sendDisableEvent(actor: core.GameObject)
+	if types.NPC.objectIsInstance(actor) == true then
+		actor:sendEvent("cefDisable", {})
+	end
+end
+
+local function disableAllEffects()
+	for _, actor in ipairs(world.activeActors) do
+		sendDisableEvent(actor)
+	end
+end
+
+local function clearVfx()
 	for _, actor in ipairs(world.activeActors) do
 		if types.NPC.objectIsInstance(actor) == true then
-			actor:sendEvent("cefRemoveEffects", {})
+			actor:sendEvent("cefClearVfx", {})
 		end
+	end
+end
+
+local function loadSettings()
+	if settings == nil then
+		async:newUnsavableSimulationTimer(loadSettingsTickDelay, loadSettings)
+		settings = storage.globalSection("SettingsGeneralConditionalEffectsFramework")
 	end
 end
 
@@ -162,32 +182,36 @@ return {
 			local configData = loadConfigFiles()
 			local parsedConfigData = parseConfigFiles(configData)
 			storeConfigFiles(parsedConfigData)
-			settings = storage.globalSection("SettingsGeneralConditionalEffectsFramework")
+			loadSettings()
 			validateEffectIDs()
-			createUpdateTimer()
 		end,
       	onActorActive = function(actor: core.GameObject)
 			if types.NPC.objectIsInstance(actor) == false then
 				return
 			end
-			syncMWVars(actor)
 			storage.globalSection(actor.id):setLifeTime(storage.LIFE_TIME.GameSession as storage.LifeTime)
+			createUpdateTimer()
       	end,
 		onActivate = function(object: core.GameObject, actor: core.GameObject)
-			if types.Player.objectIsInstance(actor) ~= true or types.NPC.objectIsInstance(object) ~= true then
+			if settings:asTable().cefEnable == false or settings:asTable().cefLiteMode == true or types.Player.objectIsInstance(actor) ~= true or types.NPC.objectIsInstance(object) ~= true then
 				return
 			end
-			actorInteracted = object
+			table.insert(actorsInMenu, { player = actor, actor = object })
 		end,
 		onUpdate = function()
-			if actorInteracted == nil then
+			if next(actorsInMenu) ~= nil then
 				return
 			else
 				realTime = core.getRealTime()
 			end
-			if ((realTime - elapsedTime) >= (settings:asTable().cefMenuTickDelay as number)) then
-				if core.isWorldPaused() == true and settings:asTable().cefEnable == true and settings:asTable().cefLiteMode == false and settings:asTable().cefEnableMenuUpdates == true then
-					actorInteracted:sendEvent("cefUpdate", {})
+			if core.isWorldPaused() == true and ((realTime - elapsedTime) >= (settings:asTable().cefMenuTickDelay as number)) then
+				if settings:asTable().cefEnableMenuUpdates == true then
+					for _, v in ipairs(actorsInMenu) do
+						v.player:sendEvent("cefUpdate", {})
+						if v.actor ~= nil then
+							v.actor:sendEvent("cefUpdate", {})
+						end
+					end
 				end
 				elapsedTime = realTime
 			end
@@ -203,17 +227,34 @@ return {
 			local item = inventory:find(data.itemId)
 			item:remove(data.quantity)
 		end,
-		cefMenuOpened = function()
-			
+		cefMenuOpened = function(data: { string: core.GameObject })
+			table.insert(actorsInMenu, { player = data.actor })
 		end,
 		cefUpdateVfx = function()
-			clearEffects()
+			clearVfx()
 		end,
 		cefMainMenuClosed = function()
-			createUpdateTimer()
+			if settings:asTable().cefEnable == true then
+				createUpdateTimer()
+			else
+				disableAllEffects()
+			end
 		end,
-		cefMenuClosed = function()
-			actorInteracted = nil
+		cefInventoryClosed = function(data: { string: core.GameObject })
+			for i, actors in ipairs(actorsInMenu) do
+				if actors.player == data.actor then
+					table.remove(actorsInMenu, i)
+					break
+				end
+			end
+		end,
+		cefMenuClosed = function(data: { string: core.GameObject })
+			for i, actors in ipairs(actorsInMenu) do
+				if actors.player == data.actor then
+					table.remove(actorsInMenu, i)
+					break
+				end
+			end
 		end,
 	},
 }

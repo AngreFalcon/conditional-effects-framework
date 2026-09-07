@@ -1,4 +1,5 @@
 local core = require('openmw.core')
+local this = require('openmw.self')
 
 local activatedBed = 0
 
@@ -45,7 +46,7 @@ return {
             if data.newMode == MENU_MODES.Rest then
                activatedBed = core.getGameTime()
             else
-               core.sendGlobalEvent("cefMenuOpened", {})
+               core.sendGlobalEvent("cefMenuOpened", { actor = this.object })
             end
          elseif data.newMode == nil and data.oldMode ~= nil then
             if data.oldMode == MENU_MODES.Rest then
@@ -54,8 +55,10 @@ return {
                end
             elseif data.oldMode == MENU_MODES.MainMenu then
                core.sendGlobalEvent("cefMainMenuClosed", {})
+            elseif data.oldMode == MENU_MODES.Interface then
+               core.sendGlobalEvent("cefInventoryClosed", { actor = this.object })
             else
-               core.sendGlobalEvent("cefMenuClosed", {})
+               core.sendGlobalEvent("cefMenuClosed", { actor = this.object })
             end
          end
       end,

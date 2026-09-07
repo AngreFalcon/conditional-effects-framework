@@ -592,50 +592,54 @@ local function checkEffectConditions(fileName, effectId, effect)
    end
 end
 
-local function checkEffect(fileName, effectId, effect)
-   if settings:asTable().cefEnable == true and ((configSettings:asTable()["configToggle" .. fileName])[effectId] == true) then
-      checkEffectConditions(fileName, effectId, effect)
-   elseif distTable[fileName .. effectId] ~= nil then
-      if effectWhitelist[fileName][effectId] == nil then
-         effectWhitelist[fileName][effectId] = effect
-      end
-      if effect.effects ~= nil and distTable[fileName .. effectId].effects ~= nil then
-         removeCosmetics(fileName, effectId)
-      end
-      if effect.spells ~= nil and distTable[fileName .. effectId].spells ~= nil then
-         undoSpellDistribution(fileName, effectId)
-      end
-      if effect.items ~= nil and distTable[fileName .. effectId].items ~= nil then
-         undoItemDistribution(fileName, effectId)
-      end
-      distTable[fileName .. effectId] = nil
+local function removeEffects(fileName, effectId, effect)
+   if effectWhitelist[fileName][effectId] == nil then
+      effectWhitelist[fileName][effectId] = effect
    end
+   if effect.effects ~= nil and distTable[fileName .. effectId].effects ~= nil then
+      removeCosmetics(fileName, effectId)
+   end
+   if effect.spells ~= nil and distTable[fileName .. effectId].spells ~= nil then
+      undoSpellDistribution(fileName, effectId)
+   end
+   if effect.items ~= nil and distTable[fileName .. effectId].items ~= nil then
+      undoItemDistribution(fileName, effectId)
+   end
+   distTable[fileName .. effectId] = nil
 end
 
 local function loopThroughEffects()
    for fileName, contents in pairs(effectWhitelist) do
       for effectId, effect in pairs(contents) do
-         checkEffect(fileName, effectId, effect)
+         if settings:asTable().cefEnable == true and (configSettings:asTable()["configToggle" .. fileName])[effectId] == true then
+            checkEffectConditions(fileName, effectId, effect)
+         elseif distTable[fileName .. effectId] ~= nil then
+            removeEffects(fileName, effectId, effect)
+         end
       end
    end
 end
 
 local function checkNearby()
-   for _, player in ipairs(nearby.players) do
-      if types.Actor.isInActorsProcessingRange(player) == true then
-         nearby.asyncCastRenderingRay(async:callback(
-         function(result)
-            if result.hit == false then
-               loopThroughEffects()
-            end
-         end),
-         player.position, (this).position, { ignore = player })
+   if types.Player.objectIsInstance(this.object) == true then
+      loopThroughEffects()
+   else
+      for _, player in ipairs(nearby.players) do
+         if types.Actor.isInActorsProcessingRange(player) == true then
+            nearby.asyncCastRenderingRay(async:callback(
+            function(result)
+               if result.hit == false then
+                  loopThroughEffects()
+               end
+            end),
+            player.position, (this).position, { ignore = player })
 
+         end
       end
    end
 end
 
-local function removeEffects()
+local function clearVfx()
    for k, _ in pairs(distTable) do
       distTable[k].effects = nil
    end
@@ -665,7 +669,7 @@ return {
          distTable = saveData.distTable
       end,
       onInactive = function()
-         removeEffects()
+         clearVfx()
       end,
       onActive = function()
          configData = storage.globalSection("CEF_ConfigData")
@@ -676,17 +680,24 @@ return {
             effectWhitelist = {}
             buildEffectWhitelist()
          end
+         checkNearby()
       end,
    },
    eventHandlers = {
       cefUpdate = function()
-         if next(distTable) == nil and settings:asTable().cefEnable == false then
+         if settings:asTable().cefEnable == false then
+            return
+         end
+         checkNearby()
+      end,
+      cefDisable = function()
+         if next(distTable) == nil then
             return
          end
          checkNearby()
       end,
       cefRemoveEffects = function()
-         removeEffects()
+         clearVfx()
       end,
    },
 }
