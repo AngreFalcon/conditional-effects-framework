@@ -324,6 +324,25 @@ local function undoItemDistribution(fileName, effectId)
 end
 
 local STATIC_CONDITIONS = {
+   { "isMale",
+   function(_, isMale)
+      return types.NPC.record(this.object).isMale == isMale
+   end,
+   },
+
+   { "isPlayer",
+   function(_, isPlayer)
+      return types.Player.objectIsInstance(this.object) == isPlayer
+   end,
+   },
+
+   { "isBeastRace",
+   function(_, isBeastRace)
+      local race = types.NPC.record(this.object).id
+      return types.NPC.races.record(race).isBeast == isBeastRace
+   end,
+   },
+
    { "charId",
    function(_, condId)
       local charId = types.NPC.record(this.object).id
@@ -348,16 +367,28 @@ local STATIC_CONDITIONS = {
    end,
    },
 
-   { "isMale",
-   function(_, isMale)
-      return types.NPC.record(this.object).isMale == isMale
-   end,
-   },
-
    { "classes",
    function(_, classes)
       local class = types.NPC.record(this.object).class
       return classes[string.lower(class)]
+   end,
+   },
+
+   { "getRandom",
+   function(effectId, chance)
+      if chance == 1 then
+         return true
+      elseif chance < 1 then
+         return false
+      end
+      local seed = 0
+      local seedString = this.object.id .. effectId
+      for i = 1, #seedString do
+         seed = seed + seedString:byte(i)
+      end
+      math.randomseed(seed)
+      local random = math.random(1, math.floor(chance))
+      return math.floor((chance / 2) + 0.5) == random
    end,
    },
 }
@@ -382,19 +413,6 @@ local CONDITIONS = {
    end,
    },
 
-   { "isPlayer",
-   function(_, isPlayer)
-      return types.Player.objectIsInstance(this.object) == isPlayer
-   end,
-   },
-
-   { "isBeastRace",
-   function(_, isBeastRace)
-      local race = types.NPC.record(this.object).id
-      return types.NPC.races.record(race).isBeast == isBeastRace
-   end,
-   },
-
    { "hasEffects",
    function(_, fileEffects)
       for fileName, effects in pairs(fileEffects) do
@@ -415,24 +433,6 @@ local CONDITIONS = {
       local hasLeftBracer = leftBracer ~= nil and leftBracer.recordId == "slave_bracer_left"
       local hasRightBracer = rightBracer ~= nil and rightBracer.recordId == "slave_bracer_right"
       return (types.NPC.record(this.object).class == "slave" and (hasRightBracer or hasLeftBracer)) == isSlave
-   end,
-   },
-
-   { "getRandom",
-   function(effectId, chance)
-      if chance == 1 then
-         return true
-      elseif chance < 1 then
-         return false
-      end
-      local seed = 0
-      local seedString = this.object.id .. effectId
-      for i = 1, #seedString do
-         seed = seed + seedString:byte(i)
-      end
-      math.randomseed(seed)
-      local random = math.random(1, math.floor(chance))
-      return math.floor((chance / 2) + 0.5) == random
    end,
    },
 

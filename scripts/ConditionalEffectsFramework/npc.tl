@@ -324,6 +324,25 @@ local function undoItemDistribution(fileName: string, effectId: string)
 end
 
 local STATIC_CONDITIONS <const>: { { string, function(string, any) } } = {
+	{ "isMale",
+		function(_, isMale: boolean): boolean
+			return types.NPC.record(this.object as types.Actor).isMale == isMale
+		end
+	},
+
+	{ "isPlayer",
+		function(_, isPlayer: boolean): boolean
+			return types.Player.objectIsInstance(this.object) == isPlayer
+		end
+	},
+
+	{ "isBeastRace",
+		function(_, isBeastRace: boolean): boolean
+			local race: string = types.NPC.record(this.object).id
+			return types.NPC.races.record(race).isBeast == isBeastRace
+		end
+	},
+
 	{ "charId",
 		function(_, condId: { string }): boolean
 			local charId = types.NPC.record(this.object as types.Actor).id
@@ -348,16 +367,28 @@ local STATIC_CONDITIONS <const>: { { string, function(string, any) } } = {
 		end
 	},
 
-	{ "isMale",
-		function(_, isMale: boolean): boolean
-			return types.NPC.record(this.object as types.Actor).isMale == isMale
-		end
-	},
-
 	{ "classes",
 		function(_, classes: { string: boolean }): boolean
 			local class = types.NPC.record(this.object).class
 			return classes[string.lower(class)]
+		end
+	},
+
+	{ "getRandom",
+		function(effectId: string, chance: number): boolean
+			if chance == 1 then
+				return true
+			elseif chance < 1 then
+				return false
+			end
+			local seed: integer = 0
+			local seedString: string = this.object.id .. effectId
+			for i = 1, #seedString do
+				seed = seed + seedString:byte(i)
+			end
+			math.randomseed(seed)
+			local random = math.random(1, math.floor(chance))
+			return math.floor((chance / 2) + 0.5) == random
 		end
 	},
 }
@@ -382,19 +413,6 @@ local CONDITIONS <const>: { { string, function(string, any) } } = {
 		end
 	},
 
-	{ "isPlayer",
-		function(_, isPlayer: boolean): boolean
-			return types.Player.objectIsInstance(this.object) == isPlayer
-		end
-	},
-
-	{ "isBeastRace",
-		function(_, isBeastRace: boolean): boolean
-			local race: string = types.NPC.record(this.object).id
-			return types.NPC.races.record(race).isBeast == isBeastRace
-		end
-	},
-
 	{ "hasEffects",
 		function(_, fileEffects: { string: { string: boolean } }): boolean
 			for fileName, effects in pairs(fileEffects) do
@@ -415,24 +433,6 @@ local CONDITIONS <const>: { { string, function(string, any) } } = {
 			local hasLeftBracer: boolean = leftBracer ~= nil and leftBracer.recordId == "slave_bracer_left"
 			local hasRightBracer: boolean = rightBracer ~= nil and rightBracer.recordId == "slave_bracer_right"
 			return (types.NPC.record(this.object).class == "slave" and (hasRightBracer or hasLeftBracer)) == isSlave
-		end
-	},
-
-	{ "getRandom",
-		function(effectId: string, chance: number): boolean
-			if chance == 1 then
-				return true
-			elseif chance < 1 then
-				return false
-			end
-			local seed: integer = 0
-			local seedString: string = this.object.id .. effectId
-			for i = 1, #seedString do
-				seed = seed + seedString:byte(i)
-			end
-			math.randomseed(seed)
-			local random = math.random(1, math.floor(chance))
-			return math.floor((chance / 2) + 0.5) == random
 		end
 	},
 
