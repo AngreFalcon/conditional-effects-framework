@@ -10,7 +10,6 @@ local util = require('openmw.util')
 local cef_utils = require('scripts.ConditionalEffectsFramework.cef-utils')
 
 
-local configData
 local varsTable
 local configSettings
 local distTable = {}
@@ -393,9 +392,9 @@ local function checkStaticConditions(effectId, conditions)
    return result
 end
 
-local function buildEffectWhitelist()
+local function buildEffectWhitelist(configData)
    local newWhitelist = {}
-   for fileName, contents in pairs(configData:asTable()) do
+   for fileName, contents in pairs(configData) do
       for effectId, effect in pairs(contents) do
          if newWhitelist[fileName] == nil then
             newWhitelist[fileName] = {}
@@ -406,6 +405,15 @@ local function buildEffectWhitelist()
       end
    end
    effectWhitelist = newWhitelist
+end
+
+local function queueWhitelistConstruction(configData)
+   if effectWhitelist == nil and buildingWhitelist == nil then
+      buildingWhitelist = coroutine.create(buildEffectWhitelist)
+      coroutine.resume(buildingWhitelist, configData)
+   elseif buildingWhitelist ~= nil and coroutine.status(buildingWhitelist) == "dead" then
+      buildingWhitelist = nil
+   end
 end
 
 local function checkConditions(effectId, conditions)
@@ -468,11 +476,8 @@ local function removeEffects(fileName, effectId, effect)
 end
 
 local function loopThroughEffects(cefSettings)
-   if effectWhitelist == nil and buildingWhitelist == nil then
-      buildingWhitelist = coroutine.create(buildEffectWhitelist)
-      coroutine.resume(buildingWhitelist)
-   elseif buildingWhitelist ~= nil and coroutine.status(buildingWhitelist) == "dead" then
-      buildingWhitelist = nil
+   if effectWhitelist == nil then
+      return
    end
    for fileName, contents in pairs(effectWhitelist) do
       for effectId, effect in pairs(contents) do
@@ -485,8 +490,9 @@ local function loopThroughEffects(cefSettings)
    end
 end
 
-local function checkNearby(cefSettings)
+local function checkNearby(cefSettings, configData)
    if types.Player.objectIsInstance(this.object) == true then
+      queueWhitelistConstruction(configData)
       loopThroughEffects(cefSettings)
    else
       for _, player in ipairs(nearby.players) do
@@ -494,6 +500,7 @@ local function checkNearby(cefSettings)
             nearby.asyncCastRenderingRay(async:callback(
             function(result)
                if result.hit == false then
+                  queueWhitelistConstruction(configData)
                   loopThroughEffects(cefSettings)
                end
             end),
@@ -530,7 +537,7 @@ return {
          clearVfx()
       end,
       onActive = function()
-         configData = storage.globalSection("CEF_ConfigData")
+
          varsTable = storage.globalSection(this.object.id)
          configSettings = storage.globalSection("SettingsConditionalEffectsFrameworkConfigs")
          if buildingWhitelist ~= nil and coroutine.status(buildingWhitelist) == "suspended" then
@@ -539,14 +546,14 @@ return {
       end,
    },
    eventHandlers = {
-      cefUpdate = function(cefSettings)
-         checkNearby(cefSettings)
+      cefUpdate = function(data)
+         checkNearby(data.settings, data.configData)
       end,
-      cefDisable = function(cefSettings)
+      cefDisable = function(data)
          if next(distTable) == nil then
             return
          end
-         checkNearby(cefSettings)
+         checkNearby(data.settings, data.configData)
       end,
       cefRemoveEffects = function()
          clearVfx()

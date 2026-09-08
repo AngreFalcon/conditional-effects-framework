@@ -10,7 +10,7 @@ local cef_utils = require('scripts.ConditionalEffectsFramework.cef-utils')
 
 -- variables
 local settings: storage.StorageSection = storage.globalSection("SettingsGeneralConditionalEffectsFramework")
-local cefSettings: cef_utils.CEFSettings = {
+local cefSettings: CEFSettings = {
 		cefEnable = true,
 		cefLiteMode = false,
 		cefTickDelay = 0.5,
@@ -18,10 +18,13 @@ local cefSettings: cef_utils.CEFSettings = {
 		cefMenuTickDelay = 1.0,
 		cefPollRange = 2000.0,
 }
+local cefConfigData: { string: { string: CEFConfig } }
 local loadSettingsTickDelay: number = 0.5
 local timerRunning: boolean = false
-local realTime: number = core.getRealTime()
-local elapsedTime: number = 0
+local menuTimer: CEFTimer = {
+	realTime = core.getRealTime(),
+	elapsedTime = 0
+}
 local actorsInMenu: { string: { string: core.GameObject } } = {}
 -- end variables
 
@@ -51,20 +54,12 @@ local function loadConfigFiles(): { string: string }
 	return configData
 end
 
-local function parseConfigFiles(configData: { string: string}): { string: any }
+local function parseConfigFiles(configData: { string: string}): { string: { string: CEFConfig } }
 	local parsedConfigData: { string: any } = {}
 	for k, v in pairs(configData) do
 		parsedConfigData[k] = json.decode(v)
 	end
-	return parsedConfigData
-end
-
-local function storeConfigFiles(parsedConfigData: { string: any })
-	local configSection = storage.globalSection("CEF_ConfigData")
-	configSection:setLifeTime(storage.LIFE_TIME.GameSession as storage.LifeTime)
-	for k, v in pairs(parsedConfigData) do
-		configSection:set(k, v)
-	end
+	return parsedConfigData as { string: { string: CEFConfig } }
 end
 
 local function findSpellByID(spellId: string): core.Spell
@@ -115,7 +110,7 @@ end
 local function sendUpdateEvent(actor: core.GameObject)
 	if types.NPC.objectIsInstance(actor) == true and cefSettings.cefEnable == true then
 		syncMWVars(actor)
-		actor:sendEvent("cefUpdate", cefSettings)
+		actor:sendEvent("cefUpdate", { settings = cefSettings, configData = cefConfigData })
 	end
 end
 
@@ -126,7 +121,7 @@ local function performConditionUpdate()
 end
 
 local function performPausedUpdate()
-	if core.isWorldPaused() == true and ((realTime - elapsedTime) >= cefSettings.cefMenuTickDelay) then
+	if core.isWorldPaused() == true and ((menuTimer.realTime - menuTimer.elapsedTime) >= cefSettings.cefMenuTickDelay) then
 		if cefSettings.cefEnableMenuUpdates == true then
 			for _, actors in pairs(actorsInMenu) do
 				sendUpdateEvent(actors.player)
@@ -135,7 +130,7 @@ local function performPausedUpdate()
 				end
 			end
 		end
-		elapsedTime = realTime
+		menuTimer.elapsedTime = menuTimer.realTime
 	end
 end
 
@@ -157,7 +152,7 @@ end
 
 local function sendDisableEvent(actor: core.GameObject)
 	if types.NPC.objectIsInstance(actor) == true then
-		actor:sendEvent("cefDisable", cefSettings)
+		actor:sendEvent("cefDisable", { settings = cefSettings, configData = cefConfigData })
 	end
 end
 
@@ -204,8 +199,7 @@ return {
    	engineHandlers = {
 		onInit = function()
 			local configData = loadConfigFiles()
-			local parsedConfigData = parseConfigFiles(configData)
-			storeConfigFiles(parsedConfigData)
+			cefConfigData = parseConfigFiles(configData)
 			loadSettings()
 			validateEffectIDs()
 		end,
@@ -226,17 +220,17 @@ return {
 			if cef_utils.checkSizeOfTable(actorsInMenu) == 0 then
 				return
 			else
-				realTime = core.getRealTime()
+				menuTimer.realTime = core.getRealTime()
 			end
 			performPausedUpdate()
 		end,
    	},
 	eventHandlers = {
-		cefAddItem = function(data: { core.GameObject, cef_utils.CEFItem })
+		cefAddItem = function(data: { core.GameObject, CEFItem })
 			local item = world.createObject(data[2].itemId, data[2].quantity)
 			item:moveInto(types.Actor.inventory(data[1]))
 		end,
-		cefRemoveItem = function(data: { core.GameObject, cef_utils.CEFItem })
+		cefRemoveItem = function(data: { core.GameObject, CEFItem })
 			local inventory = types.Actor.inventory(data[1])
 			local item = inventory:find(data[2].itemId)
 			item:remove(data[2].quantity)

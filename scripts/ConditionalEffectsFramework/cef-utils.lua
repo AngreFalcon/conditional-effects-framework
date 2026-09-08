@@ -2,6 +2,7 @@ local _tl_compat; if (tonumber((_VERSION or ''):match('[%d.]*$')) or 0) < 5.3 th
 local core = require('openmw.core')
 
 
+CEFSettings = {}
 
 
 
@@ -10,16 +11,19 @@ local core = require('openmw.core')
 
 
 
+CEFRange = {}
 
 
 
 
 
 
+CEFGuild = {}
 
 
 
 
+CEFCondition = {}
 
 
 
@@ -37,46 +41,52 @@ local core = require('openmw.core')
 
 
 
+CEFEffect = {}
 
 
 
 
+CEFSpell = {}
 
 
 
 
+CEFItem = {}
 
 
 
 
 
+CEFItemPool = {}
 
 
 
 
 
+CEFConfig = {}
 
 
 
 
 
 
+CEFData = {}
 
 
 
 
+CEFTimer = {}
 
 
 
 
+CEFDistributionTable = {}
 
 
 
 
 
-
-
-
+CEFSaveData = {}
 
 
 
@@ -241,19 +251,6 @@ local function checkSizeOfTable(t)
 end
 
 return {
-
-   CEFSettings = CEFSettings,
-   CEFRange = CEFRange,
-   CEFGuild = CEFGuild,
-   CEFCondition = CEFCondition,
-   CEFEffect = CEFEffect,
-   CEFSpell = CEFSpell,
-   CEFItem = CEFItem,
-   CEFItemPool = CEFItemPool,
-   CEFConfig = CEFConfig,
-   DistributionTable = DistributionTable,
-   SaveData = SaveData,
-
 
    DYNAMIC_STATS = DYNAMIC_STATS,
    ATTRIBUTES = ATTRIBUTES,

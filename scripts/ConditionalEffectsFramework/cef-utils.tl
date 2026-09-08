@@ -2,7 +2,7 @@ local types = require('openmw.types')
 local core = require('openmw.core')
 
 -- interfaces below
-local interface CEFSettings
+global interface CEFSettings
 	cefEnable: boolean
 	cefLiteMode: boolean
 	cefTickDelay: number
@@ -11,19 +11,19 @@ local interface CEFSettings
 	cefPollRange: number
 end
 
-local interface CEFRange 
+global interface CEFRange 
 	min: number
 	max: number
 	percent: boolean
 	maxValue: number
 end
 
-local interface CEFGuild
+global interface CEFGuild
 	rank: CEFRange
 	reputation: CEFRange
 end
 
-local interface CEFCondition
+global interface CEFCondition
 	charId: { string }
 	race: { string }
 	level: CEFRange
@@ -41,43 +41,53 @@ local interface CEFCondition
 	effects: { string: { string: boolean } }
 end
 
-local interface CEFEffect
+global interface CEFEffect
 	mesh: string
 	node: string
 end
 
-local interface CEFSpell
+global interface CEFSpell
 	spellId: string
 	remove: boolean
 end
 
-local interface CEFItem
+global interface CEFItem
 	itemId: string
 	quantity: number
 	remove: boolean
 end
 
-local interface CEFItemPool
+global interface CEFItemPool
 	itemPool: { CEFItem }
 	random: boolean
 	randomSeed: integer
 end
 
-local interface CEFConfig
+global interface CEFConfig
 	conditions: { CEFCondition }
 	effects: { CEFEffect }
 	spells: { CEFSpell }
 	items: { CEFItemPool }
 end
 
-local interface DistributionTable
+global interface CEFData
+	settings: CEFSettings
+	configData: { string: { string: CEFConfig } }
+end
+
+global interface CEFTimer
+	realTime: number
+	elapsedTime: number
+end
+
+global interface CEFDistributionTable
 	effects: { string }
 	spells: { CEFSpell }
 	items: { CEFItemPool }
 end
 
-local interface SaveData
-	distTable: { string: DistributionTable }
+global interface CEFSaveData
+	distTable: { string: CEFDistributionTable }
 	effectWhitelist: { string: { string: CEFConfig } }
 end
 -- end interfaces
@@ -241,19 +251,6 @@ local function checkSizeOfTable(t: { any: any }): number
 end
 
 return {
-	-- interfaces
-	CEFSettings = CEFSettings,
-	CEFRange = CEFRange,
-	CEFGuild = CEFGuild,
-	CEFCondition = CEFCondition,
-	CEFEffect = CEFEffect,
-	CEFSpell = CEFSpell,
-	CEFItem = CEFItem,
-	CEFItemPool = CEFItemPool,
-	CEFConfig = CEFConfig,
-	DistributionTable = DistributionTable,
-	SaveData = SaveData,
-
 	-- constants
 	DYNAMIC_STATS = DYNAMIC_STATS,
 	ATTRIBUTES = ATTRIBUTES,

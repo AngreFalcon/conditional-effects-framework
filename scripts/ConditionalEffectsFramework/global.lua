@@ -18,10 +18,13 @@ local cefSettings = {
    cefMenuTickDelay = 1.0,
    cefPollRange = 2000.0,
 }
+local cefConfigData
 local loadSettingsTickDelay = 0.5
 local timerRunning = false
-local realTime = core.getRealTime()
-local elapsedTime = 0
+local menuTimer = {
+   realTime = core.getRealTime(),
+   elapsedTime = 0,
+}
 local actorsInMenu = {}
 
 
@@ -57,14 +60,6 @@ local function parseConfigFiles(configData)
       parsedConfigData[k] = json.decode(v)
    end
    return parsedConfigData
-end
-
-local function storeConfigFiles(parsedConfigData)
-   local configSection = storage.globalSection("CEF_ConfigData")
-   configSection:setLifeTime(storage.LIFE_TIME.GameSession)
-   for k, v in pairs(parsedConfigData) do
-      configSection:set(k, v)
-   end
 end
 
 local function findSpellByID(spellId)
@@ -115,7 +110,7 @@ end
 local function sendUpdateEvent(actor)
    if types.NPC.objectIsInstance(actor) == true and cefSettings.cefEnable == true then
       syncMWVars(actor)
-      actor:sendEvent("cefUpdate", cefSettings)
+      actor:sendEvent("cefUpdate", { settings = cefSettings, configData = cefConfigData })
    end
 end
 
@@ -126,7 +121,7 @@ local function performConditionUpdate()
 end
 
 local function performPausedUpdate()
-   if core.isWorldPaused() == true and ((realTime - elapsedTime) >= cefSettings.cefMenuTickDelay) then
+   if core.isWorldPaused() == true and ((menuTimer.realTime - menuTimer.elapsedTime) >= cefSettings.cefMenuTickDelay) then
       if cefSettings.cefEnableMenuUpdates == true then
          for _, actors in pairs(actorsInMenu) do
             sendUpdateEvent(actors.player)
@@ -135,7 +130,7 @@ local function performPausedUpdate()
             end
          end
       end
-      elapsedTime = realTime
+      menuTimer.elapsedTime = menuTimer.realTime
    end
 end
 
@@ -157,7 +152,7 @@ end
 
 local function sendDisableEvent(actor)
    if types.NPC.objectIsInstance(actor) == true then
-      actor:sendEvent("cefDisable", cefSettings)
+      actor:sendEvent("cefDisable", { settings = cefSettings, configData = cefConfigData })
    end
 end
 
@@ -204,8 +199,7 @@ return {
    engineHandlers = {
       onInit = function()
          local configData = loadConfigFiles()
-         local parsedConfigData = parseConfigFiles(configData)
-         storeConfigFiles(parsedConfigData)
+         cefConfigData = parseConfigFiles(configData)
          loadSettings()
          validateEffectIDs()
       end,
@@ -226,7 +220,7 @@ return {
          if cef_utils.checkSizeOfTable(actorsInMenu) == 0 then
             return
          else
-            realTime = core.getRealTime()
+            menuTimer.realTime = core.getRealTime()
          end
          performPausedUpdate()
       end,

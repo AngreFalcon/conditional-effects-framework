@@ -10,11 +10,10 @@ local util = require('openmw.util')
 local cef_utils = require('scripts.ConditionalEffectsFramework.cef-utils')
 
 -- variables
-local configData: storage.StorageSection
 local varsTable: storage.StorageSection
 local configSettings: storage.StorageSection
-local distTable: { string: cef_utils.DistributionTable } = {}
-local effectWhitelist: { string: { string: cef_utils.CEFConfig } }
+local distTable: { string: CEFDistributionTable } = {}
+local effectWhitelist: { string: { string: CEFConfig } }
 local buildingWhitelist: thread
 -- end variables
 
@@ -53,7 +52,7 @@ local function removeItemFromActor(itemId: string, quantity: number)
 	core.sendGlobalEvent("cefRemoveItem", { actor = this.object, itemId = itemId, quantity = quantity })
 end
 
-local function applyCosmetics(fileName: string, effectId: string, effects: { cef_utils.CEFEffect })
+local function applyCosmetics(fileName: string, effectId: string, effects: { CEFEffect })
 	distTable[fileName .. effectId].effects = {}
 	for _, effectData in ipairs(effects) do
 		local vfxId = fileName .. effectId .. effectData.mesh
@@ -77,7 +76,7 @@ local function removeCosmetics(fileName: string, effectId: string)
 	distTable[fileName .. effectId].effects = nil
 end
 
-local function applySpellDistribution(fileName: string, effectId: string, spells: { cef_utils.CEFSpell })
+local function applySpellDistribution(fileName: string, effectId: string, spells: { CEFSpell })
 	distTable[fileName .. effectId].spells = {}
 	local actorSpells = types.Actor.spells(this as core.GameObject) as { core.Spell }
 	for _, spell in ipairs(spells) do
@@ -103,7 +102,7 @@ local function undoSpellDistribution(fileName: string, effectId: string)
 	distTable[fileName .. effectId].spells = nil
 end
 
-local function applyItemEffect(item: cef_utils.CEFItem, dist: cef_utils.CEFItemPool, actorInventory: core.Inventory)
+local function applyItemEffect(item: CEFItem, dist: CEFItemPool, actorInventory: core.Inventory)
 	if item.itemId == "nil" then
 		dist.itemPool[#dist.itemPool + 1] = { itemId = item.itemId, remove = nil, quantity = nil }
 		return
@@ -125,7 +124,7 @@ local function applyItemEffect(item: cef_utils.CEFItem, dist: cef_utils.CEFItemP
 	end
 end
 
-local function applyItemDistribution(fileName: string, effectId: string, items: { cef_utils.CEFItemPool })
+local function applyItemDistribution(fileName: string, effectId: string, items: { CEFItemPool })
 	distTable[fileName .. effectId].items = {}
 	local actorInventory = types.Actor.inventory(this as core.GameObject)
 	for _, itemPool in ipairs(items) do
@@ -239,7 +238,7 @@ local STATIC_CONDITIONS <const>: { { string, function(string, any) } } = {
 
 local CONDITIONS <const>: { { string, function(string, any) } } = {
 	{ "level", 
-		function(_, level: cef_utils.CEFRange): boolean
+		function(_, level: CEFRange): boolean
 			local actorLevel = types.Actor.stats.level(this.object)
 			return cef_utils.compareRange(actorLevel.current, level)
 		end
@@ -281,7 +280,7 @@ local CONDITIONS <const>: { { string, function(string, any) } } = {
 	},
 
 	{ "vars",
-		function(_, vars: { string: cef_utils.CEFRange }): boolean
+		function(_, vars: { string: CEFRange }): boolean
 			if varsTable == nil then
 				return false
 			end
@@ -296,7 +295,7 @@ local CONDITIONS <const>: { { string, function(string, any) } } = {
 	},
 
 	{ "dynStats",
-		function(_, dynStats: { string: cef_utils.CEFRange }): boolean
+		function(_, dynStats: { string: CEFRange }): boolean
 			for k, range in pairs(dynStats) do
 				local getStat = cef_utils.DYNAMIC_STATS[k];
 				local dynStat = getStat and getStat(this.object)
@@ -309,7 +308,7 @@ local CONDITIONS <const>: { { string, function(string, any) } } = {
 	},
 
 	{ "attributes",
-		function(_, attributes: { string: cef_utils.CEFRange }): boolean
+		function(_, attributes: { string: CEFRange }): boolean
 			for k, range in pairs(attributes) do
 				local getAttr = cef_utils.ATTRIBUTES[k]
 				local attr = getAttr and getAttr(this.object)
@@ -322,7 +321,7 @@ local CONDITIONS <const>: { { string, function(string, any) } } = {
 	},
 
 	{ "skills",
-		function(_, skills: { string: cef_utils.CEFRange }): boolean
+		function(_, skills: { string: CEFRange }): boolean
 			for k, range in pairs(skills) do
 				local getSkill = cef_utils.SKILLS[k]
 				local skill = getSkill and getSkill(this.object)
@@ -351,7 +350,7 @@ local CONDITIONS <const>: { { string, function(string, any) } } = {
 	},
 
 	{ "guilds",
-		function(_, guilds: { string: cef_utils.CEFGuild }): boolean
+		function(_, guilds: { string: CEFGuild }): boolean
 			local actorGuilds: { string: boolean } = {}
 			for _, v in ipairs(types.NPC.getFactions(this.object)) do
 				actorGuilds[v] = true
@@ -375,7 +374,7 @@ local CONDITIONS <const>: { { string, function(string, any) } } = {
 	},
 }
 
-local function checkStaticConditions(effectId: string, conditions: { cef_utils.CEFCondition }): boolean
+local function checkStaticConditions(effectId: string, conditions: { CEFCondition }): boolean
 	local result: boolean = true
 	for _, v1 in ipairs(conditions) do
 		result = true
@@ -393,10 +392,10 @@ local function checkStaticConditions(effectId: string, conditions: { cef_utils.C
 	return result
 end
 
-local function buildEffectWhitelist()
-	local newWhitelist: { string: { string: cef_utils.CEFConfig } } = {}
-	for fileName, contents in pairs(configData:asTable() as { string: { string: cef_utils.CEFConfig } }) do
-		for effectId, effect in pairs(contents as { string: cef_utils.CEFConfig }) do
+local function buildEffectWhitelist(configData: { string: { string: CEFConfig } })
+	local newWhitelist: { string: { string: CEFConfig } } = {}
+	for fileName, contents in pairs(configData) do
+		for effectId, effect in pairs(contents as { string: CEFConfig }) do
 			if newWhitelist[fileName] == nil then
 				newWhitelist[fileName] = {}
 			end
@@ -408,7 +407,18 @@ local function buildEffectWhitelist()
 	effectWhitelist = newWhitelist
 end
 
-local function checkConditions(effectId: string, conditions: { cef_utils.CEFCondition }): boolean
+local function resumeBuildingWhitelist(configData: { string: { string: CEFConfig } })
+	if buildingWhitelist ~= nil then
+		local status: string = coroutine.status(buildingWhitelist)
+		if status == "suspended" then
+			coroutine.resume(buildingWhitelist, configData)
+		elseif status == "dead" then
+			buildingWhitelist = nil
+		end
+	end
+end
+
+local function checkConditions(effectId: string, conditions: { CEFCondition }): boolean
 	local result: boolean = true
 	for _, v1 in ipairs(conditions) do
 		result = true
@@ -426,7 +436,7 @@ local function checkConditions(effectId: string, conditions: { cef_utils.CEFCond
 	return result
 end
 
-local function checkEffectConditions(fileName: string, effectId: string, effect: cef_utils.CEFConfig)
+local function checkEffectConditions(fileName: string, effectId: string, effect: CEFConfig)
 	if distTable[fileName .. effectId] == nil then
 		distTable[fileName .. effectId] = {}
 	end
@@ -451,7 +461,7 @@ local function checkEffectConditions(fileName: string, effectId: string, effect:
 	end
 end
 
-local function removeEffects(fileName: string, effectId: string, effect: cef_utils.CEFConfig)
+local function removeEffects(fileName: string, effectId: string, effect: CEFConfig)
 	if effectWhitelist[fileName][effectId] == nil then
 		effectWhitelist[fileName][effectId] = effect
 	end
@@ -467,15 +477,9 @@ local function removeEffects(fileName: string, effectId: string, effect: cef_uti
 	distTable[fileName .. effectId] = nil
 end
 
-local function loopThroughEffects(cefSettings: cef_utils.CEFSettings)
-	if effectWhitelist == nil and buildingWhitelist == nil then
-		buildingWhitelist = coroutine.create(buildEffectWhitelist)
-		coroutine.resume(buildingWhitelist)
-	elseif buildingWhitelist ~= nil and coroutine.status(buildingWhitelist) == "dead" then
-		buildingWhitelist = nil
-	end
+local function loopThroughEffects(cefSettings: CEFSettings)
 	for fileName, contents in pairs(effectWhitelist) do
-		for effectId, effect in pairs(contents as { string: cef_utils.CEFConfig }) do
+		for effectId, effect in pairs(contents as { string: CEFConfig }) do
 			if cefSettings.cefEnable == true and (configSettings:asTable()["configToggle" .. fileName] as { string: boolean })[effectId] == true then
 				checkEffectConditions(fileName, effectId, effect)
 			elseif distTable[fileName .. effectId] ~= nil then -- only executes if the effect is disabled or cef is disabled, and the effect is still applied
@@ -485,7 +489,10 @@ local function loopThroughEffects(cefSettings: cef_utils.CEFSettings)
 	end
 end
 
-local function checkNearby(cefSettings: cef_utils.CEFSettings)
+local function checkNearby(cefSettings: CEFSettings)
+	if effectWhitelist == nil then -- actor has no effects to poll for; don't bother doing any processing on them
+		return
+	end
 	if types.Player.objectIsInstance(this.object) == true then
 		loopThroughEffects(cefSettings)
 	else
@@ -513,36 +520,44 @@ end
 
 return {
    	engineHandlers = {
-		onSave = function(): cef_utils.SaveData
-			local saveData: cef_utils.SaveData = {}
+		onInit = function()
+			if effectWhitelist == nil and buildingWhitelist == nil then
+				buildingWhitelist = coroutine.create(buildEffectWhitelist)
+			elseif buildingWhitelist ~= nil and coroutine.status(buildingWhitelist) == "dead" then
+				buildingWhitelist = nil
+			end
+		end,
+		onSave = function(): CEFSaveData
+			local saveData: CEFSaveData = {}
 			saveData.distTable = distTable
 			saveData.effectWhitelist = effectWhitelist
 			return saveData
 		end,
-		onLoad = function(saveData: cef_utils.SaveData)
+		onLoad = function(saveData: CEFSaveData)
 			distTable = saveData.distTable
 			effectWhitelist = saveData.effectWhitelist
 		end,
+		onActive = function()
+			varsTable = storage.globalSection(this.object.id)
+			configSettings = storage.globalSection("SettingsConditionalEffectsFrameworkConfigs")
+		end,
 		onInactive = function()
-			if buildingWhitelist ~= nil and coroutine.status(buildingWhitelist) == "running" then
-				coroutine.yield(buildingWhitelist)
+			if buildingWhitelist ~= nil then
+				local status: string = coroutine.status(buildingWhitelist)
+				if status == "running" then
+					coroutine.yield(buildingWhitelist)
+				elseif status == "dead" then
+					buildingWhitelist = nil
+				end
 			end
 			clearVfx()
 		end,
-		onActive = function()
-			configData = storage.globalSection("CEF_ConfigData")
-			varsTable = storage.globalSection(this.object.id)
-			configSettings = storage.globalSection("SettingsConditionalEffectsFrameworkConfigs")
-			if buildingWhitelist ~= nil and coroutine.status(buildingWhitelist) == "suspended" then
-				coroutine.resume(buildingWhitelist)
-			end
-		end,
    	},
 	eventHandlers = {
-		cefUpdate = function(cefSettings: cef_utils.CEFSettings)
+		cefUpdate = function(cefSettings: CEFSettings)
 			checkNearby(cefSettings)
 		end,
-		cefDisable = function(cefSettings: cef_utils.CEFSettings)
+		cefDisable = function(cefSettings: CEFSettings)
 			if next(distTable) == nil then -- no effects to remove
 				return
 			end
@@ -550,6 +565,9 @@ return {
 		end,
 		cefRemoveEffects = function()
 			clearVfx()
+		end,
+		cefResumeBuildingWhitelist = function(configData: { string: { string: CEFConfig } })
+			resumeBuildingWhitelist(configData)
 		end,
 	},
 }
