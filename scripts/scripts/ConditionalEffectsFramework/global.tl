@@ -125,6 +125,20 @@ local function performConditionUpdate()
 	end
 end
 
+local function performPausedUpdate()
+	if core.isWorldPaused() == true and ((realTime - elapsedTime) >= cefSettings.cefMenuTickDelay) then
+		if cefSettings.cefEnableMenuUpdates == true then
+			for _, actors in pairs(actorsInMenu) do
+				sendUpdateEvent(actors.player)
+				if actors.actor ~= nil then	
+					sendUpdateEvent(actors.actor)
+				end
+			end
+		end
+		elapsedTime = realTime
+	end
+end
+
 local function regenerateUpdateTimer()
 	if cefSettings.cefEnable == true and cefSettings.cefLiteMode == false then
 		performConditionUpdate()
@@ -214,17 +228,7 @@ return {
 			else
 				realTime = core.getRealTime()
 			end
-			if core.isWorldPaused() == true and ((realTime - elapsedTime) >= cefSettings.cefMenuTickDelay) then
-				if cefSettings.cefEnableMenuUpdates == true then
-					for _, actors in pairs(actorsInMenu) do
-						sendUpdateEvent(actors.player)
-						if actors.actor ~= nil then	
-							sendUpdateEvent(actors.actor)
-						end
-					end
-				end
-				elapsedTime = realTime
-			end
+			performPausedUpdate()
 		end,
    	},
 	eventHandlers = {
