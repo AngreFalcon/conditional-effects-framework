@@ -135,10 +135,10 @@ I.Settings.registerGroup {
 			key = "cefPollRange",
 			name = "cef_poll_range_name",
 			description = "cef_poll_range_desc",
-			default = 1.0,
+			default = 2000.0,
 			argument = {
-				min = 0.05,
-				max = 10,
+				min = 100,
+				max = 100000,
 			},
 		},
 	} as {I.Settings.SettingOptions},

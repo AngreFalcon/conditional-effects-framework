@@ -16,7 +16,7 @@ local cefSettings = {
    cefTickDelay = 0.5,
    cefEnableMenuUpdates = true,
    cefMenuTickDelay = 1.0,
-   cefPollRange = 1.0,
+   cefPollRange = 2000.0,
 }
 local loadSettingsTickDelay = 0.5
 local timerRunning = false
