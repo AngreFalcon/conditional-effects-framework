@@ -31,5 +31,5 @@ cef_enable_menu_updates_disabled: Menu Updates Disabled
 cef_menu_tick_rate_name: Menu Tick Rate
 cef_menu_tick_rate_desc: The tick rate in seconds for Conditional Effects Framework while a menu is open. Lower values may affect performance in NPC-heavy areas.
 
-cef_poll_range_name: 
-cef_poll_range_desc: 
+cef_poll_range_name: Poll Range
+cef_poll_range_desc: "The maximum distance an NPC is allowed to be for them to continue being evaluated for effects. Generally speaking, the closest you can get to an NPC is about 80 units; anywhere from 1000-3000 units maintains a reasonable balance of performance and quality."
