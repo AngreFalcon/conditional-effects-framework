@@ -1,187 +1,31 @@
-local _tl_compat; if (tonumber((_VERSION or ''):match('[%d.]*$')) or 0) < 5.3 then local p, m = pcall(require, 'compat53.module'); if p then _tl_compat = m end end; local ipairs = _tl_compat and _tl_compat.ipairs or ipairs; local math = _tl_compat and _tl_compat.math or math; local pairs = _tl_compat and _tl_compat.pairs or pairs; local string = _tl_compat and _tl_compat.string or string; local core = require('openmw.core')
+local _tl_compat; if (tonumber((_VERSION or ''):match('[%d.]*$')) or 0) < 5.3 then local p, m = pcall(require, 'compat53.module'); if p then _tl_compat = m end end; local coroutine = _tl_compat and _tl_compat.coroutine or coroutine; local ipairs = _tl_compat and _tl_compat.ipairs or ipairs; local math = _tl_compat and _tl_compat.math or math; local pairs = _tl_compat and _tl_compat.pairs or pairs; local string = _tl_compat and _tl_compat.string or string; local core = require('openmw.core')
 local types = require('openmw.types')
 local anim = require('openmw.animation')
 local this = require('openmw.self')
 local storage = require('openmw.storage')
 local nearby = require('openmw.nearby')
 local async = require('openmw.async')
+local util = require('openmw.util')
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-local DYNAMIC_STATS = {
-   ["health"] = types.Actor.stats.dynamic.health,
-   ["fatigue"] = types.Actor.stats.dynamic.fatigue,
-   ["magicka"] = types.Actor.stats.dynamic.magicka,
-}
-
-local ATTRIBUTES = {
-   ["agility"] = types.Actor.stats.attributes.agility,
-   ["endurance"] = types.Actor.stats.attributes.endurance,
-   ["intelligence"] = types.Actor.stats.attributes.intelligence,
-   ["luck"] = types.Actor.stats.attributes.luck,
-   ["personality"] = types.Actor.stats.attributes.personality,
-   ["speed"] = types.Actor.stats.attributes.speed,
-   ["strength"] = types.Actor.stats.attributes.strength,
-   ["willpower"] = types.Actor.stats.attributes.willpower,
-}
-
-local SKILLS = {
-   ["acrobatics"] = types.NPC.stats.skills.acrobatics,
-   ["alchemy"] = types.NPC.stats.skills.alchemy,
-   ["alteration"] = types.NPC.stats.skills.alteration,
-   ["armorer"] = types.NPC.stats.skills.armorer,
-   ["athletics"] = types.NPC.stats.skills.athletics,
-   ["axe"] = types.NPC.stats.skills.axe,
-   ["block"] = types.NPC.stats.skills.block,
-   ["bluntweapon"] = types.NPC.stats.skills.bluntweapon,
-   ["conjuration"] = types.NPC.stats.skills.conjuration,
-   ["destruction"] = types.NPC.stats.skills.destruction,
-   ["enchant"] = types.NPC.stats.skills.enchant,
-   ["handtohand"] = types.NPC.stats.skills.handtohand,
-   ["heavyarmor"] = types.NPC.stats.skills.heavyarmor,
-   ["illusion"] = types.NPC.stats.skills.illusion,
-   ["lightarmor"] = types.NPC.stats.skills.lightarmor,
-   ["longblade"] = types.NPC.stats.skills.longblade,
-   ["marksman"] = types.NPC.stats.skills.marksman,
-   ["mediumarmor"] = types.NPC.stats.skills.mediumarmor,
-   ["mercantile"] = types.NPC.stats.skills.mercantile,
-   ["mysticism"] = types.NPC.stats.skills.mysticism,
-   ["restoration"] = types.NPC.stats.skills.restoration,
-   ["security"] = types.NPC.stats.skills.security,
-   ["shortblade"] = types.NPC.stats.skills.shortblade,
-   ["sneak"] = types.NPC.stats.skills.sneak,
-   ["spear"] = types.NPC.stats.skills.spear,
-   ["speechcraft"] = types.NPC.stats.skills.speechcraft,
-   ["unarmored"] = types.NPC.stats.skills.unarmored,
-}
-
-local EQUIP_SLOTS = {
-   ["helmet"] = 0,
-   ["cuirass"] = 1,
-   ["greaves"] = 2,
-   ["leftpauldron"] = 3,
-   ["rightpauldron"] = 4,
-   ["leftgauntlet"] = 5,
-   ["rightgauntlet"] = 6,
-   ["boots"] = 7,
-   ["shirt"] = 8,
-   ["pants"] = 9,
-   ["skirt"] = 10,
-   ["robe"] = 11,
-   ["leftring"] = 12,
-   ["rightring"] = 13,
-   ["amulet"] = 14,
-   ["belt"] = 15,
-   ["carriedright"] = 16,
-   ["carriedleft"] = 17,
-   ["ammunition"] = 18,
-}
-
+local cef_utils = require('scripts.ConditionalEffectsFramework.cef-utils')
 
 
 local configData
 local varsTable
 local configSettings
-local settings
 local distTable = {}
 local effectWhitelist
+local buildingWhitelist
 
 
 
-local function tableHasElement(array, element)
-   for _, item in ipairs(array) do
-      if item == element then
-         return true
-      end
-   end
-   return false
-end
-
-local function compareRange(value, r, valueMax)
-   if not r.percent then
-      if ((r.min > r.max) and (value < r.min) and (value > r.max)) or ((value < r.min) or (value > r.max)) then
-         return false
-      end
-   elseif valueMax ~= nil and valueMax ~= 0 then
-      local ratio = (value / valueMax * 100)
-      if ((r.min > r.max) and (ratio < r.min) and (ratio > r.max)) or ((ratio < r.min) or (ratio > r.max)) then
-         return false
-      end
-   else
+local function isWithinPollingRange(player, pollRange)
+   local distance = util.vector3(player.x - this.object.position.x, player.y - this.object.position.y, player.z - this.object.position.z)
+   if distance:length() > pollRange then
       return false
+   else
+      return true
    end
-   return true
 end
 
 local function hasSpell(spellId, spellList)
@@ -397,7 +241,7 @@ local CONDITIONS = {
    { "level",
    function(_, level)
       local actorLevel = types.Actor.stats.level(this.object)
-      return compareRange(actorLevel.current, level)
+      return cef_utils.compareRange(actorLevel.current, level)
    end,
    },
 
@@ -428,8 +272,8 @@ local CONDITIONS = {
 
    { "isSlave",
    function(_, isSlave)
-      local leftBracer = (types.Actor.getEquipment(this.object, EQUIP_SLOTS["leftgauntlet"]))
-      local rightBracer = (types.Actor.getEquipment(this.object, EQUIP_SLOTS["rightgauntlet"]))
+      local leftBracer = (types.Actor.getEquipment(this.object, cef_utils.EQUIP_SLOTS["leftgauntlet"]))
+      local rightBracer = (types.Actor.getEquipment(this.object, cef_utils.EQUIP_SLOTS["rightgauntlet"]))
       local hasLeftBracer = leftBracer ~= nil and leftBracer.recordId == "slave_bracer_left"
       local hasRightBracer = rightBracer ~= nil and rightBracer.recordId == "slave_bracer_right"
       return (types.NPC.record(this.object).class == "slave" and (hasRightBracer or hasLeftBracer)) == isSlave
@@ -443,7 +287,7 @@ local CONDITIONS = {
       end
       for k, range in pairs(vars) do
          local value = varsTable:get(k)
-         if value == nil or compareRange(value, range, range.maxValue) == false then
+         if value == nil or cef_utils.compareRange(value, range, range.maxValue) == false then
             return false
          end
       end
@@ -454,9 +298,9 @@ local CONDITIONS = {
    { "dynStats",
    function(_, dynStats)
       for k, range in pairs(dynStats) do
-         local getStat = DYNAMIC_STATS[k];
+         local getStat = cef_utils.DYNAMIC_STATS[k];
          local dynStat = getStat and getStat(this.object)
-         if dynStat == nil or compareRange(dynStat.current, range, dynStat.base + dynStat.modifier) == false then
+         if dynStat == nil or cef_utils.compareRange(dynStat.current, range, dynStat.base + dynStat.modifier) == false then
             return false
          end
       end
@@ -467,9 +311,9 @@ local CONDITIONS = {
    { "attributes",
    function(_, attributes)
       for k, range in pairs(attributes) do
-         local getAttr = ATTRIBUTES[k]
+         local getAttr = cef_utils.ATTRIBUTES[k]
          local attr = getAttr and getAttr(this.object)
-         if attr == nil or compareRange(attr.modified, range, attr.base + attr.modifier) == false then
+         if attr == nil or cef_utils.compareRange(attr.modified, range, attr.base + attr.modifier) == false then
             return false
          end
       end
@@ -480,9 +324,9 @@ local CONDITIONS = {
    { "skills",
    function(_, skills)
       for k, range in pairs(skills) do
-         local getSkill = SKILLS[k]
+         local getSkill = cef_utils.SKILLS[k]
          local skill = getSkill and getSkill(this.object)
-         if skill == nil or compareRange(skill.modified, range, skill.base + skill.modifier) == false then
+         if skill == nil or cef_utils.compareRange(skill.modified, range, skill.base + skill.modifier) == false then
             return false
          end
       end
@@ -493,12 +337,12 @@ local CONDITIONS = {
    { "equipment",
    function(_, equipment)
       for k, v in pairs(equipment) do
-         local equipped = types.Actor.getEquipment(this.object, EQUIP_SLOTS[string.lower(k)])
+         local equipped = types.Actor.getEquipment(this.object, cef_utils.EQUIP_SLOTS[string.lower(k)])
          local dataType = type(v)
          if (dataType == "boolean" and v == (equipped == nil)) or
             (dataType ~= "boolean" and equipped == nil) or
             (dataType == "string" and (equipped).recordId ~= string.lower(v)) or
-            (dataType == "table" and tableHasElement(v, (equipped).recordId) == false) then
+            (dataType == "table" and cef_utils.tableHasElement(v, (equipped).recordId) == false) then
             return false
          end
       end
@@ -517,11 +361,11 @@ local CONDITIONS = {
             return false
          else
             local rank = types.NPC.getFactionRank(this.object, k)
-            if v.rank and compareRange(rank, v.rank) == false then
+            if v.rank and cef_utils.compareRange(rank, v.rank) == false then
                return false
             end
             local reputation = types.NPC.getFactionReputation(this.object, k)
-            if v.reputation and compareRange(reputation, v.reputation) == false then
+            if v.reputation and cef_utils.compareRange(reputation, v.reputation) == false then
                return false
             end
          end
@@ -623,14 +467,16 @@ local function removeEffects(fileName, effectId, effect)
    distTable[fileName .. effectId] = nil
 end
 
-local function loopThroughEffects()
-   if effectWhitelist == nil then
-      effectWhitelist = {}
-      async:newUnsavableSimulationTimer(settings:asTable().cefTickDelay, buildEffectWhitelist)
+local function loopThroughEffects(cefSettings)
+   if effectWhitelist == nil and buildingWhitelist == nil then
+      buildingWhitelist = coroutine.create(buildEffectWhitelist)
+      coroutine.resume(buildingWhitelist)
+   elseif buildingWhitelist ~= nil and coroutine.status(buildingWhitelist) == "dead" then
+      buildingWhitelist = nil
    end
    for fileName, contents in pairs(effectWhitelist) do
       for effectId, effect in pairs(contents) do
-         if settings:asTable().cefEnable == true and (configSettings:asTable()["configToggle" .. fileName])[effectId] == true then
+         if cefSettings.cefEnable == true and (configSettings:asTable()["configToggle" .. fileName])[effectId] == true then
             checkEffectConditions(fileName, effectId, effect)
          elseif distTable[fileName .. effectId] ~= nil then
             removeEffects(fileName, effectId, effect)
@@ -639,16 +485,16 @@ local function loopThroughEffects()
    end
 end
 
-local function checkNearby()
+local function checkNearby(cefSettings)
    if types.Player.objectIsInstance(this.object) == true then
-      loopThroughEffects()
+      loopThroughEffects(cefSettings)
    else
       for _, player in ipairs(nearby.players) do
-         if types.Actor.isInActorsProcessingRange(player) == true then
+         if isWithinPollingRange(player.position, cefSettings.cefPollRange) == true then
             nearby.asyncCastRenderingRay(async:callback(
             function(result)
                if result.hit == false then
-                  loopThroughEffects()
+                  loopThroughEffects(cefSettings)
                end
             end),
             player.position, (this).position, { ignore = player })
@@ -664,6 +510,7 @@ local function clearVfx()
    end
 end
 
+
 return {
    engineHandlers = {
       onSave = function()
@@ -677,27 +524,29 @@ return {
          effectWhitelist = saveData.effectWhitelist
       end,
       onInactive = function()
+         if buildingWhitelist ~= nil and coroutine.status(buildingWhitelist) == "running" then
+            coroutine.yield(buildingWhitelist)
+         end
          clearVfx()
       end,
       onActive = function()
          configData = storage.globalSection("CEF_ConfigData")
          varsTable = storage.globalSection(this.object.id)
          configSettings = storage.globalSection("SettingsConditionalEffectsFrameworkConfigs")
-         settings = storage.globalSection("SettingsGeneralConditionalEffectsFramework")
+         if buildingWhitelist ~= nil and coroutine.status(buildingWhitelist) == "suspended" then
+            coroutine.resume(buildingWhitelist)
+         end
       end,
    },
    eventHandlers = {
-      cefUpdate = function()
-         if settings:asTable().cefEnable == false then
-            return
-         end
-         checkNearby()
+      cefUpdate = function(cefSettings)
+         checkNearby(cefSettings)
       end,
-      cefDisable = function()
+      cefDisable = function(cefSettings)
          if next(distTable) == nil then
             return
          end
-         checkNearby()
+         checkNearby(cefSettings)
       end,
       cefRemoveEffects = function()
          clearVfx()

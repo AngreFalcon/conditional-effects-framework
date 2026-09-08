@@ -1,14 +1,14 @@
-page_name: Conditional Effects Framework
-page_description: Conditional Effects Framework is a mod that allows VFX to be dynamically applied to and removed from NPCs and creatures, including the player character, based on configuration files installed by the user.
+cef_page_name: Conditional Effects Framework
+cef_page_description: Conditional Effects Framework is a mod that allows VFX to be dynamically applied to and removed from NPCs and creatures, including the player character, based on configuration files installed by the user.
 
-toggle_settings_group_name: Effect Toggles
-toggle_settings_group_desc: These settings allow you to toggle on/off effects in-game, and are organized by the file they originate from.
+cef_toggle_settings_group_name: Effect Toggles
+cef_toggle_settings_group_desc: These settings allow you to toggle on/off effects in-game, and are organized by the file they originate from.
 
-general_settings_group_name: General Settings
-general_settings_group_desc: General settings related to Conditional Effects Framework.
+cef_general_settings_group_name: General Settings
+cef_general_settings_group_desc: General settings related to Conditional Effects Framework.
 
-config_toggle_name: "Config Toggle - "
-config_toggle_desc: "Toggle configs from file: "
+cef_config_toggle_name: "Config Toggle - "
+cef_config_toggle_desc: "Toggle configs from file: "
 
 cef_enable_name: Framework Toggle
 cef_enable_desc: Enables or disables Conditional Effects Framework.
@@ -20,13 +20,16 @@ cef_lite_mode_desc: If enabled, effects will only be checked when an actor loads
 cef_lite_mode_enabled: Lite Mode Enabled
 cef_lite_mode_disabled: Lite Mode Disabled
 
-tick_rate_name: Tick Rate
-tick_rate_desc: The tick rate in seconds for Conditional Effects Framework. Lower values may affect performance in NPC-heavy areas.
+cef_tick_rate_name: Tick Rate
+cef_tick_rate_desc: The tick rate in seconds for Conditional Effects Framework. Lower values may affect performance in NPC-heavy areas.
 
 cef_enable_menu_updates_name: Menu Updates Toggle
 cef_enable_menu_updates_desc: Enables or disables updates for Conditional Effects Framework while menus are open.
 cef_enable_menu_updates_enabled: Menu Updates Enabled
 cef_enable_menu_updates_disabled: Menu Updates Disabled
 
-menu_tick_rate_name: Menu Tick Rate
-menu_tick_rate_desc: The tick rate in seconds for Conditional Effects Framework while a menu is open. Lower values may affect performance in NPC-heavy areas.
+cef_menu_tick_rate_name: Menu Tick Rate
+cef_menu_tick_rate_desc: The tick rate in seconds for Conditional Effects Framework while a menu is open. Lower values may affect performance in NPC-heavy areas.
+
+cef_poll_range_name: 
+cef_poll_range_desc: 

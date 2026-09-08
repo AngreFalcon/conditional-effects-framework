@@ -1,42 +1,11 @@
 local core = require('openmw.core')
 local this = require('openmw.self')
 
-local activatedBed: number = 0
+local cef_utils = require('scripts.ConditionalEffectsFramework.cef-utils')
 
-local MENU_MODES <const>: { string: string } = {
-	Loading = "Loading",
-	LoadingWallpaper = "LoadingWallpaper",
-	QuickKeysMenu = "QuickKeysMenu",
-	SpellBuying = "SpellBuying",
-	Rest = "Rest",
-	Jail = "Jail",
-	ChargenClassCreate = "ChargenClassCreate",
-	Journal = "Journal",
-	Repair = "Repair",
-	Scroll = "Scroll",
-	ChargenRace = "ChargenRace",
-	Companion = "Companion",
-	MainMenu = "MainMenu",
-	Alchemy = "Alchemy",
-	Dialogue = "Dialogue",
-	Barter = "Barter",
-	Container = "Container",
-	Travel = "Travel",
-	SpellCreation = "SpellCreation",
-	Enchanting = "Enchanting",
-	Recharge = "Recharge",
-	Training = "Training",
-	MerchantRepair = "MerchantRepair",
-	LevelUp = "LevelUp",
-	ChargenName = "ChargenName",
-	Book = "Book",
-	ChargenBirth = "ChargenBirth",
-	ChargenClass = "ChargenClass",
-	ChargenClassGenerate = "ChargenClassGenerate",
-	ChargenClassPick = "ChargenClassPick",
-	Interface = "Interface",
-	ChargenClassReview = "ChargenClassReview",
-}
+-- variables
+local activatedBed: number = 0
+-- end variables
 
 return {
 	eventHandlers = {
@@ -45,17 +14,17 @@ return {
 		if data.newMode ~= nil and data.oldMode == nil then
 			core.sendGlobalEvent("cefMenuOpened", { actor = this.object })
 
-			if data.newMode == MENU_MODES.Rest then -- player opened rest menu
+			if data.newMode == cef_utils.MENU_MODES.Rest then -- player opened rest menu
 				activatedBed = core.getGameTime()
 			end
 		elseif data.newMode == nil and data.oldMode ~= nil then
 			core.sendGlobalEvent("cefMenuClosed", { actor = this.object })
 
-			if data.oldMode == MENU_MODES.Rest then -- player closed rest menu
+			if data.oldMode == cef_utils.MENU_MODES.Rest then -- player closed rest menu
 				if core.getGameTime() > activatedBed then -- will only be true if player has activated a bed to open the rest menu and has also passed time by sleeping. otherwise, will be false
 					core.sendGlobalEvent("cefUpdateVfx", {})
 				end
-			elseif data.oldMode == MENU_MODES.MainMenu then -- player closed main menu
+			elseif data.oldMode == cef_utils.MENU_MODES.MainMenu then -- player closed main menu
 				core.sendGlobalEvent("cefMainMenuClosed", {})
 			end
 		end

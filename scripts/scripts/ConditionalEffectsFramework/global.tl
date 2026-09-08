@@ -6,28 +6,26 @@ local json = require('scripts.lib.json')
 local types = require('openmw.types')
 local async = require('openmw.async')
 
-local ITEM_INTERFACES <const>: { any } = {
-	types.Apparatus,
-	types.Armor,
-	types.Book,
-	types.Clothing,
-	types.Ingredient,
-	types.Light,
-	types.Lockpick,
-	types.Miscellaneous,
-	types.Potion,
-	types.Probe,
-	types.Repair,
-	types.Weapon,
-}
+local cef_utils = require('scripts.ConditionalEffectsFramework.cef-utils')
 
+-- variables
 local settings: storage.StorageSection = storage.globalSection("SettingsGeneralConditionalEffectsFramework")
+local cefSettings: cef_utils.CEFSettings = {
+		cefEnable = true,
+		cefLiteMode = false,
+		cefTickDelay = 0.5,
+		cefEnableMenuUpdates = true,
+		cefMenuTickDelay = 1.0,
+		cefPollRange = 1.0,
+}
 local loadSettingsTickDelay: number = 0.5
 local timerRunning: boolean = false
 local realTime: number = core.getRealTime()
 local elapsedTime: number = 0
 local actorsInMenu: { string: { string: core.GameObject } } = {}
+-- end variables
 
+-- functions
 local function syncMWVars(actor: core.GameObject) -- Get the current state of all local mwscript variables associated with the provided actor
 	if actor ~= nil then
 		local localScript: world.MWScript = world.mwscript.getLocalScript(actor, nil)
@@ -81,7 +79,7 @@ local function findSpellByID(spellId: string): core.Spell
 end
 
 local function validateItemId(itemId: string): boolean
-	for _, itemRecord in ipairs(ITEM_INTERFACES as { { string: any } }) do
+	for _, itemRecord in ipairs(cef_utils.ITEM_INTERFACES as { { string: any } }) do
 		if (itemRecord.records as { string: any })[itemId] ~= nil then
 			return true
 		end
@@ -115,9 +113,9 @@ local function validateEffectIDs()
 end
 
 local function sendUpdateEvent(actor: core.GameObject)
-	if types.NPC.objectIsInstance(actor) == true then
+	if types.NPC.objectIsInstance(actor) == true and cefSettings.cefEnable == true then
 		syncMWVars(actor)
-		actor:sendEvent("cefUpdate", {})
+		actor:sendEvent("cefUpdate", cefSettings)
 	end
 end
 
@@ -128,9 +126,9 @@ local function performConditionUpdate()
 end
 
 local function regenerateUpdateTimer()
-	if settings:asTable().cefEnable == true and settings:asTable().cefLiteMode == false then
+	if cefSettings.cefEnable == true and cefSettings.cefLiteMode == false then
 		performConditionUpdate()
-		async:newUnsavableSimulationTimer((settings:asTable().cefTickDelay as number), regenerateUpdateTimer)
+		async:newUnsavableSimulationTimer(cefSettings.cefTickDelay, regenerateUpdateTimer)
 	else
 		timerRunning = false
 	end
@@ -138,14 +136,14 @@ end
 
 local function createUpdateTimer()
 	if timerRunning == false then
-		async:newUnsavableSimulationTimer((settings:asTable().cefTickDelay as number), regenerateUpdateTimer)
+		async:newUnsavableSimulationTimer(cefSettings.cefTickDelay, regenerateUpdateTimer)
 		timerRunning = true
 	end
 end
 
 local function sendDisableEvent(actor: core.GameObject)
 	if types.NPC.objectIsInstance(actor) == true then
-		actor:sendEvent("cefDisable", {})
+		actor:sendEvent("cefDisable", cefSettings)
 	end
 end
 
@@ -163,28 +161,30 @@ local function clearVfx()
 	end
 end
 
+local function updateSettings(section: string, key: string)
+	if section ~= "SettingsGeneralConditionalEffectsFramework" then
+		return
+	end
+	if key == nil then
+		for k in pairs(cefSettings as { string: any }) do
+			(cefSettings as { string: any })[k] = settings:asTable()[k]
+		end
+	else
+		(cefSettings as { string: any })[key] = settings:asTable()[key]
+	end
+end
+
 local function loadSettings()
+	local settingsSectionName = "SettingsGeneralConditionalEffectsFramework"
 	if settings == nil then
+		settings = storage.globalSection(settingsSectionName)
 		async:newUnsavableSimulationTimer(loadSettingsTickDelay, loadSettings)
-		settings = storage.globalSection("SettingsGeneralConditionalEffectsFramework")
+	else -- once settings have loaded, store them and send new settings to all active actors
+		updateSettings(settingsSectionName, nil)
+		settings:subscribe(async:callback(updateSettings))
 	end
 end
-
-local function checkSizeOfTable(t: { any: any }): number
-	local size: number = 0
-	local k, v = next(t)
-	while v ~= nil do
-		k, v = next(t, k)
-		size = size + 1
-	end
-	return size
-end
-
-local interface ItemData
-	actor: core.GameObject
-	itemId: string
-	quantity: number
-end
+-- end functions
 
 return {
    	engineHandlers = {
@@ -203,19 +203,19 @@ return {
 			createUpdateTimer()
       	end,
 		onActivate = function(object: core.GameObject, actor: core.GameObject)
-			if settings:asTable().cefEnable == false or settings:asTable().cefLiteMode == true or types.Player.objectIsInstance(actor) ~= true or types.NPC.objectIsInstance(object) ~= true then
+			if cefSettings.cefEnable == false or cefSettings.cefLiteMode == true or types.Player.objectIsInstance(actor) ~= true or types.NPC.objectIsInstance(object) ~= true then
 				return
 			end
 			actorsInMenu[actor.id] = { player = actor, actor = object}
 		end,
 		onUpdate = function()
-			if checkSizeOfTable(actorsInMenu) == 0 then
+			if cef_utils.checkSizeOfTable(actorsInMenu) == 0 then
 				return
 			else
 				realTime = core.getRealTime()
 			end
-			if core.isWorldPaused() == true and ((realTime - elapsedTime) >= (settings:asTable().cefMenuTickDelay as number)) then
-				if settings:asTable().cefEnableMenuUpdates == true then
+			if core.isWorldPaused() == true and ((realTime - elapsedTime) >= cefSettings.cefMenuTickDelay) then
+				if cefSettings.cefEnableMenuUpdates == true then
 					for _, actors in pairs(actorsInMenu) do
 						sendUpdateEvent(actors.player)
 						if actors.actor ~= nil then	
@@ -228,14 +228,14 @@ return {
 		end,
    	},
 	eventHandlers = {
-		cefAddItem = function(data: ItemData)
-			local item = world.createObject(data.itemId, data.quantity)
-			item:moveInto(types.Actor.inventory(data.actor))
+		cefAddItem = function(data: { core.GameObject, cef_utils.CEFItem })
+			local item = world.createObject(data[2].itemId, data[2].quantity)
+			item:moveInto(types.Actor.inventory(data[1]))
 		end,
-		cefRemoveItem = function(data: ItemData)
-			local inventory = types.Actor.inventory(data.actor)
-			local item = inventory:find(data.itemId)
-			item:remove(data.quantity)
+		cefRemoveItem = function(data: { core.GameObject, cef_utils.CEFItem })
+			local inventory = types.Actor.inventory(data[1])
+			local item = inventory:find(data[2].itemId)
+			item:remove(data[2].quantity)
 		end,
 		cefMenuOpened = function(data: { string: core.GameObject })
 			if actorsInMenu[data.actor.id] == nil then
@@ -246,7 +246,7 @@ return {
 			clearVfx()
 		end,
 		cefMainMenuClosed = function()
-			if settings:asTable().cefEnable == true then
+			if cefSettings.cefEnable == true then
 				createUpdateTimer()
 			else
 				disableAllEffects()

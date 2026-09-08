@@ -34,8 +34,8 @@ local function genConfigToggles(fileName)
    local settings = {}
    settings.renderer = "multiselect"
    settings.key = "configToggle" .. fileName
-   settings.name = (l10n("config_toggle_name")) .. capitalizeText(fileName)
-   settings.description = (l10n("config_toggle_desc")) .. capitalizeText(fileName)
+   settings.name = (l10n("cef_config_toggle_name")) .. capitalizeText(fileName)
+   settings.description = (l10n("cef_config_toggle_desc")) .. capitalizeText(fileName)
    settings.default = {}
    settings.argument = {};
    (settings.argument).keys = {};
@@ -68,8 +68,8 @@ I.Settings.registerGroup({
    key = 'SettingsGeneralConditionalEffectsFramework',
    l10n = 'ConditionalEffectsFramework',
    page = 'ConditionalEffectsFrameworkPage',
-   name = 'general_settings_group_name',
-   description = 'general_settings_group_desc',
+   name = 'cef_general_settings_group_name',
+   description = 'cef_general_settings_group_desc',
    permanentStorage = false,
    settings = {
       {
@@ -99,8 +99,8 @@ I.Settings.registerGroup({
       {
          renderer = "number",
          key = "cefTickDelay",
-         name = "tick_rate_name",
-         description = "tick_rate_desc",
+         name = "cef_tick_rate_name",
+         description = "cef_tick_rate_desc",
          default = 0.5,
          argument = {
             min = 0.05,
@@ -122,8 +122,19 @@ I.Settings.registerGroup({
       {
          renderer = "number",
          key = "cefMenuTickDelay",
-         name = "menu_tick_rate_name",
-         description = "menu_tick_rate_desc",
+         name = "cef_menu_tick_rate_name",
+         description = "cef_menu_tick_rate_desc",
+         default = 1.0,
+         argument = {
+            min = 0.05,
+            max = 10,
+         },
+      },
+      {
+         renderer = "number",
+         key = "cefPollRange",
+         name = "cef_poll_range_name",
+         description = "cef_poll_range_desc",
          default = 1.0,
          argument = {
             min = 0.05,
@@ -137,8 +148,8 @@ I.Settings.registerGroup({
    key = 'SettingsConditionalEffectsFrameworkConfigs',
    l10n = 'ConditionalEffectsFramework',
    page = 'ConditionalEffectsFrameworkPage',
-   name = 'toggle_settings_group_name',
-   description = 'toggle_settings_group_desc',
+   name = 'cef_toggle_settings_group_name',
+   description = 'cef_toggle_settings_group_desc',
    permanentStorage = false,
    settings = getToggleSettings(),
    order = 10,
