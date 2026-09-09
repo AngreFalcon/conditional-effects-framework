@@ -24,8 +24,6 @@ return {
 				if core.getGameTime() > activatedBed then -- will only be true if player has activated a bed to open the rest menu and has also passed time by sleeping. otherwise, will be false
 					core.sendGlobalEvent("cefUpdateVfx", {})
 				end
-			elseif data.oldMode == cef_utils.MENU_MODES.MainMenu then -- player closed main menu
-				core.sendGlobalEvent("cefMainMenuClosed", {})
 			end
 		end
 	end

@@ -24,8 +24,6 @@ return {
                if core.getGameTime() > activatedBed then
                   core.sendGlobalEvent("cefUpdateVfx", {})
                end
-            elseif data.oldMode == cef_utils.MENU_MODES.MainMenu then
-               core.sendGlobalEvent("cefMainMenuClosed", {})
             end
          end
       end,
