@@ -70,11 +70,6 @@ CEFConfig = {}
 
 
 
-CEFData = {}
-
-
-
-
 CEFTimer = {}
 
 
@@ -93,6 +88,8 @@ CEFSaveData = {}
 
 
 
+
+local LOAD_SETTINGS_TICK_DELAY = 1.0
 
 local DYNAMIC_STATS = {
    ["health"] = types.Actor.stats.dynamic.health,
@@ -252,6 +249,7 @@ end
 
 return {
 
+   LOAD_SETTINGS_TICK_DELAY = LOAD_SETTINGS_TICK_DELAY,
    DYNAMIC_STATS = DYNAMIC_STATS,
    ATTRIBUTES = ATTRIBUTES,
    SKILLS = SKILLS,

@@ -70,11 +70,6 @@ global interface CEFConfig
 	items: { CEFItemPool }
 end
 
-global interface CEFData
-	settings: CEFSettings
-	configData: { string: { string: CEFConfig } }
-end
-
 global interface CEFTimer
 	realTime: number
 	elapsedTime: number
@@ -94,6 +89,8 @@ end
 
 
 -- constants
+local LOAD_SETTINGS_TICK_DELAY <const>: number = 1.0
+
 local DYNAMIC_STATS <const>: { string: function(core.GameObject): types.DynamicStat } = {
 	["health"] = types.Actor.stats.dynamic.health,
 	["fatigue"] = types.Actor.stats.dynamic.fatigue,
@@ -252,6 +249,7 @@ end
 
 return {
 	-- constants
+	LOAD_SETTINGS_TICK_DELAY = LOAD_SETTINGS_TICK_DELAY,
 	DYNAMIC_STATS = DYNAMIC_STATS,
 	ATTRIBUTES = ATTRIBUTES,
 	SKILLS = SKILLS,
