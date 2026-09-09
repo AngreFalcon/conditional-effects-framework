@@ -11,20 +11,26 @@ local cef_utils = require('scripts.ConditionalEffectsFramework.cef-utils')
 
 -- variables
 local varsTable: storage.StorageSection
-local configSettings: storage.StorageSection
+local configSettings: storage.StorageSection = storage.globalSection("SettingsConditionalEffectsFrameworkConfigs")
+local cefConfigSettings: { string: { string: boolean } } = {}
 local distTable: { string: CEFDistributionTable } = {}
 local effectWhitelist: { string: { string: CEFConfig } }
 local buildingWhitelist: thread
 -- end variables
 
 -- functions
-local function isWithinPollingRange(player: util.Vector3, pollRange: number): boolean
-	local distance: util.Vector3 = util.vector3(player.x - this.object.position.x, player.y - this.object.position.y, player.z - this.object.position.z)
-	if distance:length() > pollRange then
-		return false
-	else
-		return true
+local function isWithinPollingRange(pollRange: number): core.GameObject
+	for _, player in ipairs(nearby.players) do
+		local distance: util.Vector3 = util.vector3(
+			player.position.x - this.object.position.x,
+			player.position.y - this.object.position.y,
+			player.position.z - this.object.position.z
+		)
+		if distance:length() <= pollRange then
+			return player
+		end
 	end
+	return nil
 end
 
 local function hasSpell(spellId: string, spellList: { core.Spell }): boolean
@@ -392,32 +398,6 @@ local function checkStaticConditions(effectId: string, conditions: { CEFConditio
 	return result
 end
 
-local function buildEffectWhitelist(configData: { string: { string: CEFConfig } })
-	local newWhitelist: { string: { string: CEFConfig } } = {}
-	for fileName, contents in pairs(configData) do
-		for effectId, effect in pairs(contents as { string: CEFConfig }) do
-			if newWhitelist[fileName] == nil then
-				newWhitelist[fileName] = {}
-			end
-			if checkStaticConditions(effectId, effect.conditions) == true then
-				newWhitelist[fileName][effectId] = effect
-			end
-		end
-	end
-	effectWhitelist = newWhitelist
-end
-
-local function resumeBuildingWhitelist(configData: { string: { string: CEFConfig } })
-	if buildingWhitelist ~= nil then
-		local status: string = coroutine.status(buildingWhitelist)
-		if status == "suspended" then
-			coroutine.resume(buildingWhitelist, configData)
-		elseif status == "dead" then
-			buildingWhitelist = nil
-		end
-	end
-end
-
 local function checkConditions(effectId: string, conditions: { CEFCondition }): boolean
 	local result: boolean = true
 	for _, v1 in ipairs(conditions) do
@@ -477,35 +457,44 @@ local function removeEffects(fileName: string, effectId: string, effect: CEFConf
 	distTable[fileName .. effectId] = nil
 end
 
-local function loopThroughEffects(cefSettings: CEFSettings)
+local function loopThroughEffects()
 	for fileName, contents in pairs(effectWhitelist) do
-		for effectId, effect in pairs(contents as { string: CEFConfig }) do
-			if cefSettings.cefEnable == true and (configSettings:asTable()["configToggle" .. fileName] as { string: boolean })[effectId] == true then
-				checkEffectConditions(fileName, effectId, effect)
-			elseif distTable[fileName .. effectId] ~= nil then -- only executes if the effect is disabled or cef is disabled, and the effect is still applied
-				removeEffects(fileName, effectId, effect)
+		if cefConfigSettings["configToggle" .. fileName] ~= nil then
+			for effectId, effect in pairs(contents as { string: CEFConfig }) do
+				if cefConfigSettings["configToggle" .. fileName][effectId] == true then
+					checkEffectConditions(fileName, effectId, effect)
+				end
 			end
 		end
 	end
 end
 
-local function checkNearby(cefSettings: CEFSettings)
+local function checkNearby(pollRange: number)
 	if effectWhitelist == nil then -- actor has no effects to poll for; don't bother doing any processing on them
 		return
 	end
 	if types.Player.objectIsInstance(this.object) == true then
-		loopThroughEffects(cefSettings)
+		loopThroughEffects()
 	else
-		for _, player in ipairs(nearby.players) do
-			if isWithinPollingRange(player.position, cefSettings.cefPollRange) == true then
-				nearby.asyncCastRenderingRay(async:callback(
-					function(result: nearby.RayCastingResult)
-						if result.hit == false then
-							loopThroughEffects(cefSettings)
-						end
-					end),
-					player.position, (this as core.GameObject).position, { ignore = player }
-				)
+		local player: core.GameObject = isWithinPollingRange(pollRange)
+		if player ~= nil then
+			nearby.asyncCastRenderingRay(async:callback(
+				function(result: nearby.RayCastingResult)
+					if result.hit == false then
+						loopThroughEffects()
+					end
+				end),
+				player.position, (this as core.GameObject).position, { ignore = player }
+			)
+		end
+	end
+end
+
+local function disableFramework()
+	for fileName, contents in pairs(effectWhitelist) do
+		for effectId, effect in pairs(contents as { string: CEFConfig }) do
+			if distTable[fileName .. effectId] ~= nil then
+				removeEffects(fileName, effectId, effect)
 			end
 		end
 	end
@@ -514,6 +503,71 @@ end
 local function clearVfx()
 	for k, _ in pairs(distTable) do
 		distTable[k].effects = nil
+	end
+end
+
+local function buildEffectWhitelist(configData: { string: { string: CEFConfig } })
+	local newWhitelist: { string: { string: CEFConfig } } = {}
+	for fileName, contents in pairs(configData) do
+		for effectId, effect in pairs(contents as { string: CEFConfig }) do
+			if newWhitelist[fileName] == nil then
+				newWhitelist[fileName] = {}
+			end
+			if checkStaticConditions(effectId, effect.conditions) == true then
+				newWhitelist[fileName][effectId] = effect
+			end
+		end
+	end
+	effectWhitelist = newWhitelist
+end
+
+local function resumeBuildingWhitelist(configData: { string: { string: CEFConfig } })
+	if buildingWhitelist ~= nil then
+		local status: string = coroutine.status(buildingWhitelist)
+		if status == "suspended" then
+			coroutine.resume(buildingWhitelist, configData)
+		elseif status == "dead" then
+			buildingWhitelist = nil
+		end
+	end
+end
+
+local function configSettingsUpdated(sectionName: string, key?: string)
+	if sectionName ~= "SettingsConditionalEffectsFrameworkConfigs" then
+		return
+	end
+	if key == nil then
+		for fileName, contents in pairs(configSettings:asTable() as { string: { string: boolean } }) do
+			if cefConfigSettings[fileName] == nil then
+				cefConfigSettings[fileName] = {}
+			end
+			for effectId, toggle in pairs(contents) do
+				cefConfigSettings[fileName][effectId] = toggle
+			end
+		end
+	else
+		for effectId, toggle in pairs((configSettings:asTable() as { string: { string: boolean } })[key]) do
+			if cefConfigSettings[key][effectId] ~= toggle then
+				cefConfigSettings[key][effectId] = toggle
+				if toggle == false then
+					local fileName: string = key:sub(#"configToggle" + 1)
+					if distTable[fileName .. effectId] ~= nil then -- only executes if the effect is disabled, and the effect is still applied
+						removeEffects(fileName, effectId, effectWhitelist[fileName][effectId])
+					end
+				end
+			end
+		end
+	end
+end
+
+local function loadConfigSettings()
+	local sectionName: string = "SettingsConditionalEffectsFrameworkConfigs"
+	if configSettings == nil then
+		configSettings = storage.globalSection(sectionName)
+		async:newUnsavableSimulationTimer(cef_utils.LOAD_SETTINGS_TICK_DELAY, loadConfigSettings)
+	else
+		configSettingsUpdated(sectionName)
+		configSettings:subscribe(async:callback(configSettingsUpdated))
 	end
 end
 -- end functions
@@ -526,6 +580,7 @@ return {
 			elseif buildingWhitelist ~= nil and coroutine.status(buildingWhitelist) == "dead" then
 				buildingWhitelist = nil
 			end
+			loadConfigSettings()
 		end,
 		onSave = function(): CEFSaveData
 			local saveData: CEFSaveData = {}
@@ -539,7 +594,6 @@ return {
 		end,
 		onActive = function()
 			varsTable = storage.globalSection(this.object.id)
-			configSettings = storage.globalSection("SettingsConditionalEffectsFrameworkConfigs")
 		end,
 		onInactive = function()
 			if buildingWhitelist ~= nil then
@@ -555,13 +609,13 @@ return {
    	},
 	eventHandlers = {
 		cefUpdate = function(cefSettings: CEFSettings)
-			checkNearby(cefSettings)
+			checkNearby(cefSettings.cefPollRange)
 		end,
-		cefDisable = function(cefSettings: CEFSettings)
+		cefDisable = function()
 			if next(distTable) == nil then -- no effects to remove
 				return
 			end
-			checkNearby(cefSettings)
+			disableFramework()
 		end,
 		cefRemoveEffects = function()
 			clearVfx()
