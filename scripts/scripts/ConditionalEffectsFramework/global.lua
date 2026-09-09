@@ -19,7 +19,6 @@ local cefSettings = {
    cefPollRange = 2000.0,
 }
 local cefConfigData
-local loadSettingsTickDelay = 0.5
 local timerRunning = false
 local menuTimer = {
    realTime = core.getRealTime(),
@@ -56,8 +55,12 @@ end
 
 local function parseConfigFiles(configData)
    local parsedConfigData = {}
+   local configStorage = storage.globalSection("CEF_ConfigData")
+   configStorage:reset({})
+   configStorage:setLifeTime(storage.LIFE_TIME.GameSession)
    for k, v in pairs(configData) do
       parsedConfigData[k] = json.decode(v)
+      configStorage:set(k, parsedConfigData[k])
    end
    return parsedConfigData
 end
@@ -110,7 +113,7 @@ end
 local function sendUpdateEvent(actor)
    if types.NPC.objectIsInstance(actor) == true and cefSettings.cefEnable == true then
       syncMWVars(actor)
-      actor:sendEvent("cefUpdate", { settings = cefSettings, configData = cefConfigData })
+      actor:sendEvent("cefUpdate", cefSettings)
    end
 end
 
@@ -152,7 +155,7 @@ end
 
 local function sendDisableEvent(actor)
    if types.NPC.objectIsInstance(actor) == true then
-      actor:sendEvent("cefDisable", { settings = cefSettings, configData = cefConfigData })
+      actor:sendEvent("cefDisable", {})
    end
 end
 
@@ -170,8 +173,8 @@ local function clearVfx()
    end
 end
 
-local function updateSettings(section, key)
-   if section ~= "SettingsGeneralConditionalEffectsFramework" then
+local function settingsUpdated(sectionName, key)
+   if sectionName ~= "SettingsGeneralConditionalEffectsFramework" then
       return
    end
    if key == nil then
@@ -181,16 +184,24 @@ local function updateSettings(section, key)
    else
       (cefSettings)[key] = settings:asTable()[key]
    end
+
+   if key == "cefEnable" then
+      if cefSettings.cefEnable == false then
+         disableAllEffects()
+      else
+         createUpdateTimer()
+      end
+   end
 end
 
 local function loadSettings()
    local settingsSectionName = "SettingsGeneralConditionalEffectsFramework"
    if settings == nil then
       settings = storage.globalSection(settingsSectionName)
-      async:newUnsavableSimulationTimer(loadSettingsTickDelay, loadSettings)
+      async:newUnsavableSimulationTimer(cef_utils.LOAD_SETTINGS_TICK_DELAY, loadSettings)
    else
-      updateSettings(settingsSectionName, nil)
-      settings:subscribe(async:callback(updateSettings))
+      settingsUpdated(settingsSectionName)
+      settings:subscribe(async:callback(settingsUpdated))
    end
 end
 
@@ -209,6 +220,7 @@ return {
          end
          storage.globalSection(actor.id):setLifeTime(storage.LIFE_TIME.GameSession)
          createUpdateTimer()
+         actor:sendEvent("cefResumeBuildingWhitelist", cefConfigData)
       end,
       onActivate = function(object, actor)
          if cefSettings.cefEnable == false or cefSettings.cefLiteMode == true or types.Player.objectIsInstance(actor) ~= true or types.NPC.objectIsInstance(object) ~= true then
@@ -217,12 +229,10 @@ return {
          actorsInMenu[actor.id] = { player = actor, actor = object }
       end,
       onUpdate = function()
-         if cef_utils.checkSizeOfTable(actorsInMenu) == 0 then
-            return
-         else
+         if cef_utils.checkSizeOfTable(actorsInMenu) > 0 then
             menuTimer.realTime = core.getRealTime()
+            performPausedUpdate()
          end
-         performPausedUpdate()
       end,
    },
    eventHandlers = {
@@ -242,13 +252,6 @@ return {
       end,
       cefUpdateVfx = function()
          clearVfx()
-      end,
-      cefMainMenuClosed = function()
-         if cefSettings.cefEnable == true then
-            createUpdateTimer()
-         else
-            disableAllEffects()
-         end
       end,
       cefMenuClosed = function(data)
          actorsInMenu[data.actor.id] = nil

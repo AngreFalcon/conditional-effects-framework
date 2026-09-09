@@ -19,7 +19,6 @@ local cefSettings: CEFSettings = {
 		cefPollRange = 2000.0,
 }
 local cefConfigData: { string: { string: CEFConfig } }
-local loadSettingsTickDelay: number = 0.5
 local timerRunning: boolean = false
 local menuTimer: CEFTimer = {
 	realTime = core.getRealTime(),
@@ -56,8 +55,12 @@ end
 
 local function parseConfigFiles(configData: { string: string}): { string: { string: CEFConfig } }
 	local parsedConfigData: { string: any } = {}
+	local configStorage = storage.globalSection("CEF_ConfigData")
+	configStorage:reset({})
+	configStorage:setLifeTime(storage.LIFE_TIME.GameSession as storage.LifeTime)
 	for k, v in pairs(configData) do
 		parsedConfigData[k] = json.decode(v)
+		configStorage:set(k, parsedConfigData[k])
 	end
 	return parsedConfigData as { string: { string: CEFConfig } }
 end
@@ -152,7 +155,7 @@ end
 
 local function sendDisableEvent(actor: core.GameObject)
 	if types.NPC.objectIsInstance(actor) == true then
-		actor:sendEvent("cefDisable", cefSettings)
+		actor:sendEvent("cefDisable", {})
 	end
 end
 
@@ -170,8 +173,8 @@ local function clearVfx()
 	end
 end
 
-local function updateSettings(section: string, key: string)
-	if section ~= "SettingsGeneralConditionalEffectsFramework" then
+local function settingsUpdated(sectionName: string, key?: string)
+	if sectionName ~= "SettingsGeneralConditionalEffectsFramework" then
 		return
 	end
 	if key == nil then
@@ -181,16 +184,24 @@ local function updateSettings(section: string, key: string)
 	else
 		(cefSettings as { string: any })[key] = settings:asTable()[key]
 	end
+
+	if key == "cefEnable" then
+		if cefSettings.cefEnable == false then
+			disableAllEffects()
+		else
+			createUpdateTimer()
+		end
+	end
 end
 
 local function loadSettings()
 	local settingsSectionName = "SettingsGeneralConditionalEffectsFramework"
 	if settings == nil then
 		settings = storage.globalSection(settingsSectionName)
-		async:newUnsavableSimulationTimer(loadSettingsTickDelay, loadSettings)
+		async:newUnsavableSimulationTimer(cef_utils.LOAD_SETTINGS_TICK_DELAY, loadSettings)
 	else -- once settings have loaded, store them and send new settings to all active actors
-		updateSettings(settingsSectionName, nil)
-		settings:subscribe(async:callback(updateSettings))
+		settingsUpdated(settingsSectionName)
+		settings:subscribe(async:callback(settingsUpdated))
 	end
 end
 -- end functions
@@ -241,13 +252,6 @@ return {
 		end,
 		cefUpdateVfx = function()
 			clearVfx()
-		end,
-		cefMainMenuClosed = function()
-			if cefSettings.cefEnable == true then
-				createUpdateTimer()
-			else
-				disableAllEffects()
-			end
 		end,
 		cefMenuClosed = function(data: { string: core.GameObject })
 			actorsInMenu[data.actor.id] = nil
