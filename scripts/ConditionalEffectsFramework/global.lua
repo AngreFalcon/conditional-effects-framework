@@ -1,4 +1,4 @@
-local _tl_compat; if (tonumber((_VERSION or ''):match('[%d.]*$')) or 0) < 5.3 then local p, m = pcall(require, 'compat53.module'); if p then _tl_compat = m end end; local ipairs = _tl_compat and _tl_compat.ipairs or ipairs; local pairs = _tl_compat and _tl_compat.pairs or pairs; local string = _tl_compat and _tl_compat.string or string; local core = require("openmw.core")
+local _tl_compat; if (tonumber((_VERSION or ''):match('[%d.]*$')) or 0) < 5.3 then local p, m = pcall(require, 'compat53.module'); if p then _tl_compat = m end end; local coroutine = _tl_compat and _tl_compat.coroutine or coroutine; local ipairs = _tl_compat and _tl_compat.ipairs or ipairs; local pairs = _tl_compat and _tl_compat.pairs or pairs; local string = _tl_compat and _tl_compat.string or string; local core = require("openmw.core")
 local world = require("openmw.world")
 local storage = require("openmw.storage")
 local vfs = require('openmw.vfs')
@@ -18,13 +18,14 @@ local cefSettings = {
    cefMenuTickDelay = 1.0,
    cefPollRange = 2000.0,
 }
-local cefConfigData
+local parsedConfigData
 local timerRunning = false
 local menuTimer = {
    realTime = core.getRealTime(),
    elapsedTime = 0,
 }
 local actorsInMenu = {}
+local cefLoadConfigDataThread
 
 
 
@@ -40,6 +41,23 @@ local function syncMWVars(actor)
    end
 end
 
+local function storeConfigFiles()
+   local configSection = storage.globalSection("CEF_ConfigData")
+   configSection:reset({})
+   configSection:setLifeTime(storage.LIFE_TIME.GameSession)
+   for k, v in pairs(parsedConfigData) do
+      configSection:set(k, v)
+   end
+end
+
+local function parseConfigFiles(configData)
+   local tempConfigData = {}
+   for k, v in pairs(configData) do
+      tempConfigData[k] = json.decode(v)
+   end
+   return tempConfigData
+end
+
 local function loadConfigFiles()
    local configData = {}
    local configPath = "/scripts/ConditionalEffectsFramework/configs/"
@@ -50,19 +68,8 @@ local function loadConfigFiles()
          configData[configId] = file:read("*all")
       end
    end
-   return configData
-end
-
-local function parseConfigFiles(configData)
-   local parsedConfigData = {}
-   local configStorage = storage.globalSection("CEF_ConfigData")
-   configStorage:reset({})
-   configStorage:setLifeTime(storage.LIFE_TIME.GameSession)
-   for k, v in pairs(configData) do
-      parsedConfigData[k] = json.decode(v)
-      configStorage:set(k, parsedConfigData[k])
-   end
-   return parsedConfigData
+   parsedConfigData = parseConfigFiles(configData)
+   storeConfigFiles()
 end
 
 local function findSpellByID(spellId)
@@ -147,6 +154,9 @@ local function regenerateUpdateTimer()
 end
 
 local function createUpdateTimer()
+   if parsedConfigData == nil then
+      return
+   end
    if timerRunning == false then
       async:newUnsavableSimulationTimer(cefSettings.cefTickDelay, regenerateUpdateTimer)
       timerRunning = true
@@ -205,22 +215,44 @@ local function loadSettings()
    end
 end
 
+local function passConfigDataToActor(actor)
+   if parsedConfigData == nil and cefLoadConfigDataThread ~= nil and coroutine.status(cefLoadConfigDataThread) ~= "dead" then
+      async:newUnsavableSimulationTimer(cef_utils.LOAD_SETTINGS_TICK_DELAY, function()
+         passConfigDataToActor(actor)
+      end)
+
+   elseif parsedConfigData == nil and (cefLoadConfigDataThread == nil or coroutine.status(cefLoadConfigDataThread) == "dead") then
+      print("Error: Config data failed to load.")
+   else
+      actor:sendEvent("cefResumeBuildingWhitelist", { configData = parsedConfigData, pollingRange = cefSettings.cefPollRange })
+   end
+end
+
+local function handleActiveActor(actor)
+   if types.NPC.objectIsInstance(actor) == false and types.Player.objectIsInstance(actor) == false then
+      return
+   end
+   if cefLoadConfigDataThread == nil then
+      cefLoadConfigDataThread = coroutine.create(loadConfigFiles)
+      coroutine.resume(cefLoadConfigDataThread)
+   end
+   storage.globalSection(actor.id):setLifeTime(storage.LIFE_TIME.GameSession)
+   passConfigDataToActor(actor)
+   createUpdateTimer()
+end
+
 
 return {
    engineHandlers = {
       onInit = function()
-         local configData = loadConfigFiles()
-         cefConfigData = parseConfigFiles(configData)
          loadSettings()
          validateEffectIDs()
       end,
+      onPlayerAdded = function(player)
+         handleActiveActor(player)
+      end,
       onActorActive = function(actor)
-         if types.NPC.objectIsInstance(actor) == false then
-            return
-         end
-         storage.globalSection(actor.id):setLifeTime(storage.LIFE_TIME.GameSession)
-         createUpdateTimer()
-         actor:sendEvent("cefResumeBuildingWhitelist", cefConfigData)
+         handleActiveActor(actor)
       end,
       onActivate = function(object, actor)
          if cefSettings.cefEnable == false or cefSettings.cefLiteMode == true or types.Player.objectIsInstance(actor) ~= true or types.NPC.objectIsInstance(object) ~= true then
@@ -229,7 +261,7 @@ return {
          actorsInMenu[actor.id] = { player = actor, actor = object }
       end,
       onUpdate = function()
-         if cef_utils.checkSizeOfTable(actorsInMenu) > 0 then
+         if cef_utils.checkSizeOfTable(actorsInMenu) > 0 and parsedConfigData ~= nil then
             menuTimer.realTime = core.getRealTime()
             performPausedUpdate()
          end

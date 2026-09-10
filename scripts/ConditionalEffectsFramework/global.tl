@@ -18,13 +18,14 @@ local cefSettings: CEFSettings = {
 		cefMenuTickDelay = 1.0,
 		cefPollRange = 2000.0,
 }
-local cefConfigData: { string: { string: CEFConfig } }
+local parsedConfigData: { string: { string: CEFConfig } }
 local timerRunning: boolean = false
 local menuTimer: CEFTimer = {
 	realTime = core.getRealTime(),
 	elapsedTime = 0
 }
 local actorsInMenu: { string: { string: core.GameObject } } = {}
+local cefLoadConfigDataThread: thread
 -- end variables
 
 -- functions
@@ -40,7 +41,24 @@ local function syncMWVars(actor: core.GameObject) -- Get the current state of al
 	end
 end
 
-local function loadConfigFiles(): { string: string }
+local function storeConfigFiles()
+	local configSection = storage.globalSection("CEF_ConfigData")
+	configSection:reset({})
+	configSection:setLifeTime(storage.LIFE_TIME.GameSession as storage.LifeTime)
+	for k, v in pairs(parsedConfigData) do
+		configSection:set(k, v)
+	end
+end
+
+local function parseConfigFiles(configData: { string: string }): { string: { string: CEFConfig } }
+	local tempConfigData: { string: { string: CEFConfig } } = {}
+	for k, v in pairs(configData) do
+		tempConfigData[k] = json.decode(v) as { string: CEFConfig }
+	end
+	return tempConfigData
+end
+
+local function loadConfigFiles()
 	local configData: { string: string } = {}
 	local configPath = "/scripts/ConditionalEffectsFramework/configs/"
 	for fileName in vfs.pathsWithPrefix(configPath) do
@@ -50,19 +68,8 @@ local function loadConfigFiles(): { string: string }
 			configData[configId] = file:read("*all")
 		end
 	end
-	return configData
-end
-
-local function parseConfigFiles(configData: { string: string}): { string: { string: CEFConfig } }
-	local parsedConfigData: { string: any } = {}
-	local configStorage = storage.globalSection("CEF_ConfigData")
-	configStorage:reset({})
-	configStorage:setLifeTime(storage.LIFE_TIME.GameSession as storage.LifeTime)
-	for k, v in pairs(configData) do
-		parsedConfigData[k] = json.decode(v)
-		configStorage:set(k, parsedConfigData[k])
-	end
-	return parsedConfigData as { string: { string: CEFConfig } }
+	parsedConfigData = parseConfigFiles(configData)
+	storeConfigFiles()
 end
 
 local function findSpellByID(spellId: string): core.Spell
@@ -147,6 +154,9 @@ local function regenerateUpdateTimer()
 end
 
 local function createUpdateTimer()
+	if parsedConfigData == nil then
+		return
+	end
 	if timerRunning == false then
 		async:newUnsavableSimulationTimer(cefSettings.cefTickDelay, regenerateUpdateTimer)
 		timerRunning = true
@@ -204,23 +214,45 @@ local function loadSettings()
 		settings:subscribe(async:callback(settingsUpdated))
 	end
 end
+
+local function passConfigDataToActor(actor: core.GameObject)
+	if parsedConfigData == nil and cefLoadConfigDataThread ~= nil and coroutine.status(cefLoadConfigDataThread) ~= "dead" then
+		async:newUnsavableSimulationTimer(cef_utils.LOAD_SETTINGS_TICK_DELAY, function()
+			passConfigDataToActor(actor)
+		end
+	)
+	elseif parsedConfigData == nil and (cefLoadConfigDataThread == nil or coroutine.status(cefLoadConfigDataThread) == "dead") then
+		print("Error: Config data failed to load.")
+	else
+		actor:sendEvent("cefResumeBuildingWhitelist", { configData = parsedConfigData, pollingRange = cefSettings.cefPollRange })
+	end
+end
+
+local function handleActiveActor(actor: core.GameObject)
+	if types.NPC.objectIsInstance(actor) == false and types.Player.objectIsInstance(actor) == false then
+		return
+	end
+	if cefLoadConfigDataThread == nil then
+		cefLoadConfigDataThread = coroutine.create(loadConfigFiles)
+		coroutine.resume(cefLoadConfigDataThread)
+	end
+	storage.globalSection(actor.id):setLifeTime(storage.LIFE_TIME.GameSession as storage.LifeTime)
+	passConfigDataToActor(actor)
+	createUpdateTimer()
+end
 -- end functions
 
 return {
    	engineHandlers = {
 		onInit = function()
-			local configData = loadConfigFiles()
-			cefConfigData = parseConfigFiles(configData)
 			loadSettings()
 			validateEffectIDs()
 		end,
+		onPlayerAdded = function(player: core.GameObject)
+			handleActiveActor(player)
+		end,
       	onActorActive = function(actor: core.GameObject)
-			if types.NPC.objectIsInstance(actor) == false then
-				return
-			end
-			storage.globalSection(actor.id):setLifeTime(storage.LIFE_TIME.GameSession as storage.LifeTime)
-			createUpdateTimer()
-			actor:sendEvent("cefResumeBuildingWhitelist", cefConfigData)
+			handleActiveActor(actor)
       	end,
 		onActivate = function(object: core.GameObject, actor: core.GameObject)
 			if cefSettings.cefEnable == false or cefSettings.cefLiteMode == true or types.Player.objectIsInstance(actor) ~= true or types.NPC.objectIsInstance(object) ~= true then
@@ -229,7 +261,7 @@ return {
 			actorsInMenu[actor.id] = { player = actor, actor = object}
 		end,
 		onUpdate = function()
-			if cef_utils.checkSizeOfTable(actorsInMenu) > 0 then
+			if cef_utils.checkSizeOfTable(actorsInMenu) > 0 and parsedConfigData ~= nil then
 				menuTimer.realTime = core.getRealTime()
 				performPausedUpdate()
 			end

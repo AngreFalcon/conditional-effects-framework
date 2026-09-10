@@ -5,10 +5,10 @@ local core = require('openmw.core')
 local l10n = core.l10n("ConditionalEffectsFramework", "en")
 
 local cefConfigData = storage.globalSection("CEF_ConfigData"):asTable()
-local cafConfigs: { string } = {}
+local cefConfigs: { string } = {}
 for _, fileContents in pairs(cefConfigData) do
     for configName in pairs(fileContents as { string: any }) do
-        cafConfigs[#cafConfigs + 1] = configName
+        cefConfigs[#cefConfigs + 1] = configName
     end
 end
 

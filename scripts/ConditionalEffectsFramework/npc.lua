@@ -13,9 +13,10 @@ local cef_utils = require('scripts.ConditionalEffectsFramework.cef-utils')
 local varsTable
 local configSettings = storage.globalSection("SettingsConditionalEffectsFrameworkConfigs")
 local cefConfigSettings = {}
-local distTable = {}
+local configData
 local effectWhitelist
-local buildingWhitelist
+local distTable = {}
+local cefBuildWhitelistThread
 
 
 
@@ -469,19 +470,16 @@ local function loopThroughEffects()
    end
 end
 
-local function checkNearby(pollRange)
-   if effectWhitelist == nil then
-      return
-   end
+local function checkNearby(pollRange, func)
    if types.Player.objectIsInstance(this.object) == true then
-      loopThroughEffects()
+      func()
    else
       local player = isWithinPollingRange(pollRange)
       if player ~= nil then
          nearby.asyncCastRenderingRay(async:callback(
          function(result)
             if result.hit == false then
-               loopThroughEffects()
+               func()
             end
          end),
          player.position, (this).position, { ignore = player })
@@ -506,7 +504,7 @@ local function clearVfx()
    end
 end
 
-local function buildEffectWhitelist(configData)
+local function buildEffectWhitelist()
    local newWhitelist = {}
    for fileName, contents in pairs(configData) do
       for effectId, effect in pairs(contents) do
@@ -519,15 +517,19 @@ local function buildEffectWhitelist(configData)
       end
    end
    effectWhitelist = newWhitelist
+   cef_utils.debugPrint(this.object, "Finished building whitelist for: " .. types.NPC.record(this.object).id)
+   cefBuildWhitelistThread = nil
 end
 
-local function resumeBuildingWhitelist(configData)
-   if buildingWhitelist ~= nil then
-      local status = coroutine.status(buildingWhitelist)
+local function resumeBuildingWhitelist(pollingRange)
+   if cefBuildWhitelistThread ~= nil then
+      local status = coroutine.status(cefBuildWhitelistThread)
       if status == "suspended" then
-         coroutine.resume(buildingWhitelist, configData)
-      elseif status == "dead" then
-         buildingWhitelist = nil
+         checkNearby(pollingRange, function()
+            cef_utils.debugPrint(this.object, "Resuming building whitelist for: " .. types.NPC.record(this.object).id)
+            coroutine.resume(cefBuildWhitelistThread)
+         end)
+
       end
    end
 end
@@ -566,7 +568,7 @@ local function loadConfigSettings()
       configSettings = storage.globalSection(sectionName)
       async:newUnsavableSimulationTimer(cef_utils.LOAD_SETTINGS_TICK_DELAY, loadConfigSettings)
    else
-      configSettingsUpdated(sectionName)
+      configSettingsUpdated(sectionName, nil)
       configSettings:subscribe(async:callback(configSettingsUpdated))
    end
 end
@@ -575,10 +577,9 @@ end
 return {
    engineHandlers = {
       onInit = function()
-         if effectWhitelist == nil and buildingWhitelist == nil then
-            buildingWhitelist = coroutine.create(buildEffectWhitelist)
-         elseif buildingWhitelist ~= nil and coroutine.status(buildingWhitelist) == "dead" then
-            buildingWhitelist = nil
+         if effectWhitelist == nil and cefBuildWhitelistThread == nil then
+            cef_utils.debugPrint(this.object, "Building whitelist for: " .. types.NPC.record(this.object).id)
+            cefBuildWhitelistThread = coroutine.create(buildEffectWhitelist)
          end
          loadConfigSettings()
       end,
@@ -596,12 +597,10 @@ return {
          varsTable = storage.globalSection(this.object.id)
       end,
       onInactive = function()
-         if buildingWhitelist ~= nil then
-            local status = coroutine.status(buildingWhitelist)
+         if cefBuildWhitelistThread ~= nil then
+            local status = coroutine.status(cefBuildWhitelistThread)
             if status == "running" then
-               coroutine.yield(buildingWhitelist)
-            elseif status == "dead" then
-               buildingWhitelist = nil
+               coroutine.yield(cefBuildWhitelistThread)
             end
          end
          clearVfx()
@@ -609,7 +608,11 @@ return {
    },
    eventHandlers = {
       cefUpdate = function(cefSettings)
-         checkNearby(cefSettings.cefPollRange)
+         if effectWhitelist ~= nil then
+            checkNearby(cefSettings.cefPollRange, loopThroughEffects)
+         else
+            resumeBuildingWhitelist(cefSettings.cefPollRange)
+         end
       end,
       cefDisable = function()
          if next(distTable) == nil then
@@ -620,8 +623,9 @@ return {
       cefRemoveEffects = function()
          clearVfx()
       end,
-      cefResumeBuildingWhitelist = function(configData)
-         resumeBuildingWhitelist(configData)
+      cefResumeBuildingWhitelist = function(data)
+         configData = data.configData
+         resumeBuildingWhitelist(data.pollingRange)
       end,
    },
 }

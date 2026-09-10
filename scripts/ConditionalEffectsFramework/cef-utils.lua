@@ -247,6 +247,23 @@ local function checkSizeOfTable(t)
    return size
 end
 
+local function debugPrint(actor, msg, actorIds)
+   if types.NPC.objectIsInstance(actor) == false then
+      return
+   end
+   if actorIds == nil then
+      print(msg)
+   else
+      for _, actorId in ipairs(actorIds) do
+         if types.NPC.record(actor).id == actorId then
+            print(msg)
+            break
+         end
+      end
+   end
+end
+
+
 return {
 
    LOAD_SETTINGS_TICK_DELAY = LOAD_SETTINGS_TICK_DELAY,
@@ -261,4 +278,5 @@ return {
    tableHasElement = tableHasElement,
    compareRange = compareRange,
    checkSizeOfTable = checkSizeOfTable,
+   debugPrint = debugPrint,
 }
