@@ -51,7 +51,7 @@ end
 
 local function sendUpdateEvent(actor: core.GameObject)
 	if types.NPC.objectIsInstance(actor) == true and cefSettings.cefEnable == true then
-		actor:sendEvent("cefUpdate", cefSettings)
+		actor:sendEvent("cefUpdate", { cefSettings = cefSettings, configData = parsedConfigData })
 	end
 end
 
@@ -96,7 +96,6 @@ local function handleActiveActor(actor: core.GameObject)
 		return
 	end
 	storage.globalSection(actor.id):setLifeTime(storage.LIFE_TIME.GameSession as storage.LifeTime)
-	actor:sendEvent("cefResumeBuildingWhitelist", { configData = parsedConfigData, pollingRange = cefSettings.cefPollRange })
 	async:newUnsavableSimulationTimer(cefSettings.cefMWVarsUpdateDelay, function()
 			MWVarsUpdateCallback(actor)
 		end

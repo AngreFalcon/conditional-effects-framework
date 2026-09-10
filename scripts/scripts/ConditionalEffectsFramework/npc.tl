@@ -13,7 +13,6 @@ local cef_utils = require('scripts.ConditionalEffectsFramework.cef-utils')
 local varsTable: storage.StorageSection
 local configSettings: storage.StorageSection = storage.globalSection("SettingsConditionalEffectsFrameworkConfigs")
 local cefConfigSettings: { string: { string: boolean } } = {}
-local configData: { string: { string: CEFConfig } }
 local effectWhitelist: { string: { string: CEFConfig } }
 local distTable: { string: CEFDistributionTable } = {}
 local cefBuildWhitelistThread: thread
@@ -504,8 +503,14 @@ local function clearVfx()
 	end
 end
 
-local function buildEffectWhitelist()
+local function buildEffectWhitelist(configData: { string: { string: CEFConfig } })
 	local newWhitelist: { string: { string: CEFConfig } } = {}
+	
+	local workingConfigData: { string: { string: CEFConfig } }
+	if workingConfigData == nil then
+		workingConfigData = configData
+	end
+
 	for fileName, contents in pairs(configData) do
 		for effectId, effect in pairs(contents as { string: CEFConfig }) do
 			if newWhitelist[fileName] == nil then
@@ -521,13 +526,13 @@ local function buildEffectWhitelist()
 	cefBuildWhitelistThread = nil
 end
 
-local function resumeBuildingWhitelist(pollingRange: number)
+local function resumeBuildingWhitelist(pollingRange: number, configData?: { string: { string: CEFConfig } })
 	if cefBuildWhitelistThread ~= nil then
 		local status: string = coroutine.status(cefBuildWhitelistThread)
 		if status == "suspended" then
 			checkNearby(pollingRange, function()
 					cef_utils.debugPrint(this.object, "Resuming building whitelist for: " .. types.NPC.record(this.object).id)
-					coroutine.resume(cefBuildWhitelistThread)
+					coroutine.resume(cefBuildWhitelistThread, configData)
 				end
 			)
 		end
@@ -607,11 +612,12 @@ return {
 		end,
    	},
 	eventHandlers = {
-		cefUpdate = function(cefSettings: CEFSettings)
+		cefUpdate = function(data: { string: any })
+			local cefSettings = data.cefSettings as CEFSettings
 			if effectWhitelist ~= nil then
 				checkNearby(cefSettings.cefPollRange, loopThroughEffects)
 			else
-				resumeBuildingWhitelist(cefSettings.cefPollRange)
+				resumeBuildingWhitelist(cefSettings.cefPollRange, data.configData as { string: { string: CEFConfig } })
 			end
 		end,
 		cefDisable = function()
@@ -622,10 +628,6 @@ return {
 		end,
 		cefRemoveEffects = function()
 			clearVfx()
-		end,
-		cefResumeBuildingWhitelist = function(data: { string: any })
-			configData = data.configData as { string: { string: CEFConfig } }
-			resumeBuildingWhitelist(data.pollingRange as number)
 		end,
 	},
 }
