@@ -380,31 +380,13 @@ local CONDITIONS = {
    },
 }
 
-local function checkStaticConditions(effectId, conditions)
+local function checkConditions(effectId, conditionList, conditionEvalList)
    local result = true
-   for _, v1 in ipairs(conditions) do
+   for _, conditionListItem in ipairs(conditionList) do
       result = true
-      for _, v2 in ipairs(STATIC_CONDITIONS) do
-         local condition = (v1)[v2[1]]
-         if condition ~= nil and v2[2](effectId, condition) == false then
-            result = false
-            break
-         end
-      end
-      if result == true then
-         return result
-      end
-   end
-   return result
-end
-
-local function checkConditions(effectId, conditions)
-   local result = true
-   for _, v1 in ipairs(conditions) do
-      result = true
-      for _, v2 in ipairs(CONDITIONS) do
-         local condition = (v1)[v2[1]]
-         if condition ~= nil and v2[2](effectId, condition) == false then
+      for _, conditionEval in ipairs(conditionEvalList) do
+         local condition = (conditionListItem)[conditionEval[1]]
+         if condition ~= nil and conditionEval[2](effectId, condition) == false then
             result = false
             break
          end
@@ -420,7 +402,7 @@ local function checkEffectConditions(fileName, effectId, effect)
    if distTable[fileName .. effectId] == nil then
       distTable[fileName .. effectId] = {}
    end
-   if checkConditions(effectId, effect.conditions) == false then
+   if checkConditions(effectId, effect.conditions, CONDITIONS) == false then
       if effect.effects ~= nil and distTable[fileName .. effectId].effects ~= nil then
          removeCosmetics(fileName, effectId)
       end
@@ -516,7 +498,7 @@ local function buildEffectWhitelist(configData)
          if newWhitelist[fileName] == nil then
             newWhitelist[fileName] = {}
          end
-         if checkStaticConditions(effectId, effect.conditions) == true then
+         if checkConditions(effectId, effect.conditions, STATIC_CONDITIONS) == true then
             newWhitelist[fileName][effectId] = effect
          end
       end
