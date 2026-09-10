@@ -1,4 +1,4 @@
-local _tl_compat; if (tonumber((_VERSION or ''):match('[%d.]*$')) or 0) < 5.3 then local p, m = pcall(require, 'compat53.module'); if p then _tl_compat = m end end; local coroutine = _tl_compat and _tl_compat.coroutine or coroutine; local ipairs = _tl_compat and _tl_compat.ipairs or ipairs; local math = _tl_compat and _tl_compat.math or math; local pairs = _tl_compat and _tl_compat.pairs or pairs; local string = _tl_compat and _tl_compat.string or string; local core = require('openmw.core')
+local _tl_compat; if (tonumber((_VERSION or ''):match('[%d.]*$')) or 0) < 5.3 then local p, m = pcall(require, 'compat53.module'); if p then _tl_compat = m end end; local coroutine = _tl_compat and _tl_compat.coroutine or coroutine; local ipairs = _tl_compat and _tl_compat.ipairs or ipairs; local math = _tl_compat and _tl_compat.math or math; local pairs = _tl_compat and _tl_compat.pairs or pairs; local string = _tl_compat and _tl_compat.string or string; local table = _tl_compat and _tl_compat.table or table; local core = require('openmw.core')
 local types = require('openmw.types')
 local anim = require('openmw.animation')
 local this = require('openmw.self')
@@ -380,34 +380,32 @@ local CONDITIONS = {
    },
 }
 
-local function checkConditions(effectId, conditionList, conditionEvalList)
-   local result = true
-   for _, conditionListItem in ipairs(conditionList) do
-      result = true
-      for _, conditionEval in ipairs(conditionEvalList) do
-         local condition = (conditionListItem)[conditionEval[1]]
-         if condition ~= nil and conditionEval[2](effectId, condition) == false then
-            result = false
-            break
-         end
-      end
-      if result == true then
-         return result
+local function checkCondition(effectId, conditionListItem, conditionEvalList)
+   for _, conditionType in ipairs(conditionEvalList) do
+      local condition = (conditionListItem)[conditionType[1]]
+      if condition ~= nil and conditionType[2](effectId, condition) == false then
+         return false
       end
    end
-   return result
+   return true
 end
 
 local function checkEffectConditions(fileName, effectId, effect)
    if distTable[fileName .. effectId] == nil then
       distTable[fileName .. effectId] = {}
    end
-   if checkConditions(effectId, effect.conditions, CONDITIONS) == false then
-      if effect.effects ~= nil and distTable[fileName .. effectId].effects ~= nil then
-         removeCosmetics(fileName, effectId)
+   for conditionInd, condition in ipairs(effect.conditions) do
+      if checkCondition(effectId, condition, CONDITIONS) == true then
+         break
       end
-      return
+      if conditionInd == #effect.conditions then
+         if effect.effects ~= nil and distTable[fileName .. effectId].effects ~= nil then
+            removeCosmetics(fileName, effectId)
+         end
+         return
+      end
    end
+
    if effect.effects ~= nil then
       if distTable[fileName .. effectId].effects == nil then
          applyCosmetics(fileName, effectId, effect.effects)
@@ -498,8 +496,18 @@ local function buildEffectWhitelist(configData)
          if newWhitelist[fileName] == nil then
             newWhitelist[fileName] = {}
          end
-         if checkConditions(effectId, effect.conditions, STATIC_CONDITIONS) == true then
-            newWhitelist[fileName][effectId] = effect
+         for _, condition in ipairs(effect.conditions) do
+            if checkCondition(effectId, condition, STATIC_CONDITIONS) == true then
+               if newWhitelist[fileName][effectId] == nil then
+                  newWhitelist[fileName][effectId] = {
+                     effects = effect.effects,
+                     spells = effect.spells,
+                     items = effect.items,
+                     conditions = {},
+                  }
+               end
+               table.insert(newWhitelist[fileName][effectId].conditions, condition)
+            end
          end
       end
    end
