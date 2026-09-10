@@ -25,7 +25,6 @@ local menuTimer: CEFTimer = {
 	elapsedTime = 0
 }
 local actorsInMenu: { string: { string: core.GameObject } } = {}
-local cefLoadConfigDataThread: thread
 -- end variables
 
 -- functions
@@ -72,61 +71,10 @@ local function loadConfigFiles()
 	storeConfigFiles()
 end
 
-local function findSpellByID(spellId: string): core.Spell
-	local foundSpell: core.Spell = nil
-	for _, spell in ipairs(core.magic.spells.records) do
-		if spell.id == spellId then
-			foundSpell = spell
-			break
-		end
-	end
-	return foundSpell
-end
-
-local function validateItemId(itemId: string): boolean
-	for _, itemRecord in ipairs(cef_utils.ITEM_INTERFACES as { { string: any } }) do
-		if (itemRecord.records as { string: any })[itemId] ~= nil then
-			return true
-		end
-	end
-	return false
-end
-
-local function validateEffectIDs()
-	local configData = storage.globalSection("CEF_ConfigData")
-	for fileName, contents in pairs(configData:asTable() as { string: { string: any } }) do
-		for effectId, effect in pairs(contents as { string: { string: any } }) do
-			if effect.spells ~= nil then
-				for _, spell in ipairs(effect.spells as { { string: string } }) do
-					local foundSpell = findSpellByID(spell.spellId)
-					if foundSpell == nil then
-						print("Spell could not be found by ID: " .. spell.spellId .. " in file: " .. fileName .. " for effect: " .. effectId)
-					end
-				end
-			end
-			if effect.items ~= nil then
-				for _, itemPool in ipairs(effect.items as { { string: { { string: string } } } }) do
-					for _, item in ipairs(itemPool.itemPool) do
-						if item.itemId ~= "nil" and validateItemId(item.itemId) == false then
-							print("Item could not be found by ID: " .. item.itemId .. " in file: " .. fileName .. " for effect: " .. effectId)
-						end
-					end
-				end
-			end
-		end
-	end
-end
-
 local function sendUpdateEvent(actor: core.GameObject)
 	if types.NPC.objectIsInstance(actor) == true and cefSettings.cefEnable == true then
 		syncMWVars(actor)
 		actor:sendEvent("cefUpdate", cefSettings)
-	end
-end
-
-local function performConditionUpdate()
-	for _, actor in ipairs(world.activeActors) do
-		sendUpdateEvent(actor)
 	end
 end
 
@@ -144,6 +92,12 @@ local function performPausedUpdate()
 	end
 end
 
+local function performConditionUpdate()
+	for _, actor in ipairs(world.activeActors) do
+		sendUpdateEvent(actor)
+	end
+end
+
 local function regenerateUpdateTimer()
 	if cefSettings.cefEnable == true and cefSettings.cefLiteMode == false then
 		performConditionUpdate()
@@ -154,9 +108,6 @@ local function regenerateUpdateTimer()
 end
 
 local function createUpdateTimer()
-	if parsedConfigData == nil then
-		return
-	end
 	if timerRunning == false then
 		async:newUnsavableSimulationTimer(cefSettings.cefTickDelay, regenerateUpdateTimer)
 		timerRunning = true
@@ -175,10 +126,52 @@ local function disableAllEffects()
 	end
 end
 
-local function clearVfx()
-	for _, actor in ipairs(world.activeActors) do
-		if types.NPC.objectIsInstance(actor) == true then
-			actor:sendEvent("cefClearVfx", {})
+local function handleActiveActor(actor: core.GameObject)
+	if types.NPC.objectIsInstance(actor) == false and types.Player.objectIsInstance(actor) == false then
+		return
+	end
+	storage.globalSection(actor.id):setLifeTime(storage.LIFE_TIME.GameSession as storage.LifeTime)
+	actor:sendEvent("cefResumeBuildingWhitelist", { configData = parsedConfigData, pollingRange = cefSettings.cefPollRange })
+	createUpdateTimer()
+end
+
+local function validateSpellId(spellId: string): boolean
+	for _, spell in ipairs(core.magic.spells.records) do
+		if spell.id == spellId then
+			return true
+		end
+	end
+	return false
+end
+
+local function validateItemId(itemId: string): boolean
+	for _, itemType in ipairs(cef_utils.ITEM_INTERFACES as { { string: any } }) do
+		if (itemType.records as { string: any })[itemId] ~= nil then
+			return true
+		end
+	end
+	return false
+end
+
+local function validateEffectIDs()
+	for fileName, contents in pairs(parsedConfigData) do
+		for effectId, effect in pairs(contents) do
+			if effect.spells ~= nil then
+				for _, spell in ipairs(effect.spells) do
+					if validateSpellId(spell.spellId) == false then
+						print("Spell could not be found by ID: " .. spell.spellId .. " in file: " .. fileName .. " for effect: " .. effectId)
+					end
+				end
+			end
+			if effect.items ~= nil then
+				for _, itemPool in ipairs(effect.items) do
+					for _, item in ipairs(itemPool.itemPool) do
+						if item.itemId ~= "nil" and validateItemId(item.itemId) == false then
+							print("Item could not be found by ID: " .. item.itemId .. " in file: " .. fileName .. " for effect: " .. effectId)
+						end
+					end
+				end
+			end
 		end
 	end
 end
@@ -214,41 +207,16 @@ local function loadSettings()
 		settings:subscribe(async:callback(settingsUpdated))
 	end
 end
-
-local function passConfigDataToActor(actor: core.GameObject)
-	if parsedConfigData == nil and cefLoadConfigDataThread ~= nil and coroutine.status(cefLoadConfigDataThread) ~= "dead" then
-		async:newUnsavableSimulationTimer(cef_utils.LOAD_SETTINGS_TICK_DELAY, function()
-			passConfigDataToActor(actor)
-		end
-	)
-	elseif parsedConfigData == nil and (cefLoadConfigDataThread == nil or coroutine.status(cefLoadConfigDataThread) == "dead") then
-		print("Error: Config data failed to load.")
-	else
-		actor:sendEvent("cefResumeBuildingWhitelist", { configData = parsedConfigData, pollingRange = cefSettings.cefPollRange })
-	end
-end
-
-local function handleActiveActor(actor: core.GameObject)
-	if types.NPC.objectIsInstance(actor) == false and types.Player.objectIsInstance(actor) == false then
-		return
-	end
-	if cefLoadConfigDataThread == nil then
-		cefLoadConfigDataThread = coroutine.create(loadConfigFiles)
-		coroutine.resume(cefLoadConfigDataThread)
-	end
-	storage.globalSection(actor.id):setLifeTime(storage.LIFE_TIME.GameSession as storage.LifeTime)
-	passConfigDataToActor(actor)
-	createUpdateTimer()
-end
 -- end functions
 
 return {
    	engineHandlers = {
-		onInit = function()
-			loadSettings()
-			validateEffectIDs()
-		end,
 		onPlayerAdded = function(player: core.GameObject)
+			if #world.players == 1 then
+				loadSettings()
+				loadConfigFiles()
+				validateEffectIDs()
+			end
 			handleActiveActor(player)
 		end,
       	onActorActive = function(actor: core.GameObject)
@@ -261,7 +229,7 @@ return {
 			actorsInMenu[actor.id] = { player = actor, actor = object}
 		end,
 		onUpdate = function()
-			if cef_utils.checkSizeOfTable(actorsInMenu) > 0 and parsedConfigData ~= nil then
+			if cef_utils.checkSizeOfTable(actorsInMenu) > 0 then
 				menuTimer.realTime = core.getRealTime()
 				performPausedUpdate()
 			end
@@ -283,7 +251,11 @@ return {
 			end
 		end,
 		cefUpdateVfx = function()
-			clearVfx()
+			for _, actor in ipairs(world.activeActors) do
+				if types.NPC.objectIsInstance(actor) == true then
+					actor:sendEvent("cefClearVfx", {})
+				end
+			end
 		end,
 		cefMenuClosed = function(data: { string: core.GameObject })
 			actorsInMenu[data.actor.id] = nil
