@@ -14,6 +14,7 @@ local cefSettings: CEFSettings = {
 		cefEnable = true,
 		cefLiteMode = false,
 		cefTickDelay = 0.5,
+		cefMWVarsUpdateDelay = 1.5,
 		cefEnableMenuUpdates = true,
 		cefMenuTickDelay = 1.0,
 		cefPollRange = 2000.0,
@@ -40,40 +41,16 @@ local function syncMWVars(actor: core.GameObject) -- Get the current state of al
 	end
 end
 
-local function storeConfigFiles()
-	local configSection = storage.globalSection("CEF_ConfigData")
-	configSection:reset({})
-	configSection:setLifeTime(storage.LIFE_TIME.GameSession as storage.LifeTime)
-	for k, v in pairs(parsedConfigData) do
-		configSection:set(k, v)
-	end
-end
-
-local function parseConfigFiles(configData: { string: string }): { string: { string: CEFConfig } }
-	local tempConfigData: { string: { string: CEFConfig } } = {}
-	for k, v in pairs(configData) do
-		tempConfigData[k] = json.decode(v) as { string: CEFConfig }
-	end
-	return tempConfigData
-end
-
-local function loadConfigFiles()
-	local configData: { string: string } = {}
-	local configPath = "/scripts/ConditionalEffectsFramework/configs/"
-	for fileName in vfs.pathsWithPrefix(configPath) do
-		local file = vfs.open(fileName as string)
-		if file ~= nil then
-			local configId = string.match(file.fileName, "([^/\\]+)%..+$")
-			configData[configId] = file:read("*all")
+local function MWVarsUpdateCallback(actor: core.GameObject)
+	syncMWVars(actor)
+	async:newUnsavableSimulationTimer(cefSettings.cefMWVarsUpdateDelay, function()
+			MWVarsUpdateCallback(actor)
 		end
-	end
-	parsedConfigData = parseConfigFiles(configData)
-	storeConfigFiles()
+	)
 end
 
 local function sendUpdateEvent(actor: core.GameObject)
 	if types.NPC.objectIsInstance(actor) == true and cefSettings.cefEnable == true then
-		syncMWVars(actor)
 		actor:sendEvent("cefUpdate", cefSettings)
 	end
 end
@@ -114,6 +91,19 @@ local function createUpdateTimer()
 	end
 end
 
+local function handleActiveActor(actor: core.GameObject)
+	if types.NPC.objectIsInstance(actor) == false and types.Player.objectIsInstance(actor) == false then
+		return
+	end
+	storage.globalSection(actor.id):setLifeTime(storage.LIFE_TIME.GameSession as storage.LifeTime)
+	actor:sendEvent("cefResumeBuildingWhitelist", { configData = parsedConfigData, pollingRange = cefSettings.cefPollRange })
+	async:newUnsavableSimulationTimer(cefSettings.cefMWVarsUpdateDelay, function()
+			MWVarsUpdateCallback(actor)
+		end
+	)
+	createUpdateTimer()
+end
+
 local function sendDisableEvent(actor: core.GameObject)
 	if types.NPC.objectIsInstance(actor) == true then
 		actor:sendEvent("cefDisable", {})
@@ -124,15 +114,6 @@ local function disableAllEffects()
 	for _, actor in ipairs(world.activeActors) do
 		sendDisableEvent(actor)
 	end
-end
-
-local function handleActiveActor(actor: core.GameObject)
-	if types.NPC.objectIsInstance(actor) == false and types.Player.objectIsInstance(actor) == false then
-		return
-	end
-	storage.globalSection(actor.id):setLifeTime(storage.LIFE_TIME.GameSession as storage.LifeTime)
-	actor:sendEvent("cefResumeBuildingWhitelist", { configData = parsedConfigData, pollingRange = cefSettings.cefPollRange })
-	createUpdateTimer()
 end
 
 local function validateSpellId(spellId: string): boolean
@@ -176,6 +157,37 @@ local function validateEffectIDs()
 	end
 end
 
+local function storeConfigFiles()
+	local configSection = storage.globalSection("CEF_ConfigData")
+	configSection:reset({})
+	configSection:setLifeTime(storage.LIFE_TIME.GameSession as storage.LifeTime)
+	for k, v in pairs(parsedConfigData) do
+		configSection:set(k, v)
+	end
+end
+
+local function parseConfigFiles(configData: { string: string }): { string: { string: CEFConfig } }
+	local tempConfigData: { string: { string: CEFConfig } } = {}
+	for k, v in pairs(configData) do
+		tempConfigData[k] = json.decode(v) as { string: CEFConfig }
+	end
+	return tempConfigData
+end
+
+local function loadConfigFiles()
+	local configData: { string: string } = {}
+	local configPath = "/scripts/ConditionalEffectsFramework/configs/"
+	for fileName in vfs.pathsWithPrefix(configPath) do
+		local file = vfs.open(fileName as string)
+		if file ~= nil then
+			local configId = string.match(file.fileName, "([^/\\]+)%..+$")
+			configData[configId] = file:read("*all")
+		end
+	end
+	parsedConfigData = parseConfigFiles(configData)
+	storeConfigFiles()
+end
+
 local function settingsUpdated(sectionName: string, key?: string)
 	if sectionName ~= "SettingsGeneralConditionalEffectsFramework" then
 		return
@@ -189,10 +201,10 @@ local function settingsUpdated(sectionName: string, key?: string)
 	end
 
 	if key == "cefEnable" then
-		if cefSettings.cefEnable == false then
-			disableAllEffects()
-		else
+		if cefSettings.cefEnable == true then
 			createUpdateTimer()
+		else
+			disableAllEffects()
 		end
 	end
 end
@@ -207,16 +219,20 @@ local function loadSettings()
 		settings:subscribe(async:callback(settingsUpdated))
 	end
 end
+
+local function cefInit()
+	if #world.players == 1 then
+		loadSettings()
+		loadConfigFiles()
+		validateEffectIDs()
+	end
+end
 -- end functions
 
 return {
    	engineHandlers = {
 		onPlayerAdded = function(player: core.GameObject)
-			if #world.players == 1 then
-				loadSettings()
-				loadConfigFiles()
-				validateEffectIDs()
-			end
+			cefInit()
 			handleActiveActor(player)
 		end,
       	onActorActive = function(actor: core.GameObject)

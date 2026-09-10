@@ -23,6 +23,9 @@ cef_lite_mode_disabled: Lite Mode Disabled
 cef_tick_rate_name: Tick Rate
 cef_tick_rate_desc: The tick rate in seconds for Conditional Effects Framework. Lower values may affect performance in NPC-heavy areas.
 
+cef_mwvars_update_rate_name: MWVars Update Delay
+cef_mwvars_update_rate_desc: The delay in seconds between updates to each actors' MWVars.
+
 cef_enable_menu_updates_name: Menu Updates Toggle
 cef_enable_menu_updates_desc: Enables or disables updates for Conditional Effects Framework while menus are open.
 cef_enable_menu_updates_enabled: Menu Updates Enabled

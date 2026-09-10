@@ -107,6 +107,17 @@ I.Settings.registerGroup {
 				max = 10,
 			},
 		},
+		{
+			renderer = "number",
+			key = "cefMWVarsUpdateDelay",
+			name = "cef_mwvars_update_rate_name",
+			description = "cef_mwvars_update_rate_desc",
+			default = 1.5,
+			argument = {
+				min = 0.05,
+				max = 10,
+			},
+		},
         {
             renderer = "checkbox",
             key = "cefEnableMenuUpdates",

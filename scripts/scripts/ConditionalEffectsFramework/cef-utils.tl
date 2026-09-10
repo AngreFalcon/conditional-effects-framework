@@ -6,6 +6,7 @@ global interface CEFSettings
 	cefEnable: boolean
 	cefLiteMode: boolean
 	cefTickDelay: number
+	cefMWVarsUpdateDelay: number
 	cefEnableMenuUpdates: boolean
 	cefMenuTickDelay: number
 	cefPollRange: number
