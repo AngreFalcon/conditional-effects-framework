@@ -15,6 +15,7 @@ local configSettings: storage.StorageSection = storage.globalSection("SettingsCo
 local cefConfigSettings: { string: { string: boolean } } = {}
 local effectWhitelist: { string: { string: CEFConfig } }
 local distTable: { string: CEFDistributionTable } = {}
+local conditionState: { string: { string: { number: { string: boolean } } } } = {} -- fileName -> effectId -> condition list index -> condition type
 local cefBuildWhitelistThread: thread
 -- end variables
 
@@ -172,28 +173,36 @@ local function undoItemDistribution(fileName: string, effectId: string)
 	distTable[fileName .. effectId].items = nil
 end
 
-local STATIC_CONDITIONS <const>: { { string, function(string, any) } } = {
-	{ "isMale",
-		function(_, isMale: boolean): boolean
+local STATIC_CONDITIONS <const>: { CEFConditionEval } = {
+	{ 
+		conditionType = "isMale",
+		eventDriven = false,
+		conditionEval = function(_, isMale: boolean): boolean
 			return types.NPC.record(this.object as types.Actor).isMale == isMale
-		end
+		end,
 	},
 
-	{ "isPlayer",
-		function(_, isPlayer: boolean): boolean
+	{
+		conditionType = "isPlayer",
+		eventDriven = false,
+		conditionEval = function(_, isPlayer: boolean): boolean
 			return types.Player.objectIsInstance(this.object) == isPlayer
 		end
 	},
 
-	{ "isBeastRace",
-		function(_, isBeastRace: boolean): boolean
+	{
+		conditionType = "isBeastRace",
+		eventDriven = false,
+		conditionEval = function(_, isBeastRace: boolean): boolean
 			local race: string = types.NPC.record(this.object).id
 			return types.NPC.races.record(race).isBeast == isBeastRace
 		end
 	},
 
-	{ "charId",
-		function(_, condId: { string }): boolean
+	{
+		conditionType = "charId",
+		eventDriven = false,
+		conditionEval = function(_, condId: { string }): boolean
 			local charId = types.NPC.record(this.object as types.Actor).id
 			for i = 1, #condId do
 				if charId == condId[i] then
@@ -204,8 +213,10 @@ local STATIC_CONDITIONS <const>: { { string, function(string, any) } } = {
 		end
 	},
 
-	{ "race",
-		function(_, race: { string }): boolean
+	{
+		conditionType = "race",
+		eventDriven = false,
+		conditionEval = function(_, race: { string }): boolean
 			local actorRace = types.NPC.record(this.object as types.Actor).race
 			for i = 1, #race do
 				if actorRace == race[i] then
@@ -216,15 +227,19 @@ local STATIC_CONDITIONS <const>: { { string, function(string, any) } } = {
 		end
 	},
 
-	{ "classes",
-		function(_, classes: { string: boolean }): boolean
+	{
+		conditionType = "classes",
+		eventDriven = false,
+		conditionEval = function(_, classes: { string: boolean }): boolean
 			local class = types.NPC.record(this.object).class
 			return classes[string.lower(class)]
 		end
 	},
 
-	{ "getRandom",
-		function(effectId: string, chance: number): boolean
+	{
+		conditionType = "getRandom",
+		eventDriven = false,
+		conditionEval = function(effectId: string, chance: number): boolean
 			if chance == 1 then
 				return true
 			elseif chance < 1 then
@@ -242,28 +257,36 @@ local STATIC_CONDITIONS <const>: { { string, function(string, any) } } = {
 	},
 }
 
-local CONDITIONS <const>: { { string, function(string, any) } } = {
-	{ "level", 
-		function(_, level: CEFRange): boolean
+local CONDITIONS <const>: { CEFConditionEval } = {
+	{
+		conditionType = "level",
+		eventDriven = false,
+		conditionEval = function(_, level: CEFRange): boolean
 			local actorLevel = types.Actor.stats.level(this.object)
 			return cef_utils.compareRange(actorLevel.current, level)
 		end
 	},
 
-	{ "isWerewolf",
-		function(_, isWerewolf: boolean): boolean
+	{
+		conditionType = "isWerewolf",
+		eventDriven = false,
+		conditionEval = function(_, isWerewolf: boolean): boolean
 			return types.NPC.isWerewolf(this.object) == isWerewolf
 		end
 	},
 
-	{ "isDead",
-		function(_, isDead: boolean): boolean
+	{
+		conditionType = "isDead",
+		eventDriven = false,
+		conditionEval = function(_, isDead: boolean): boolean
 			return types.Actor.isDead(this.object) == isDead
 		end
 	},
 
-	{ "hasEffects",
-		function(_, fileEffects: { string: { string: boolean } }): boolean
+	{
+		conditionType = "hasEffects",
+		eventDriven = true,
+		conditionEval = function(_, fileEffects: { string: { string: boolean } }): boolean
 			for fileName, effects in pairs(fileEffects) do
 				for effectId, value in pairs(effects) do
 					if (distTable[fileName .. effectId] == nil) == value then
@@ -275,8 +298,10 @@ local CONDITIONS <const>: { { string, function(string, any) } } = {
 		end
 	},
 
-	{ "isSlave",
-		function(_, isSlave: boolean): boolean
+	{
+		conditionType = "isSlave",
+		eventDriven = false,
+		conditionEval = function(_, isSlave: boolean): boolean
 			local leftBracer = (types.Actor.getEquipment(this.object, cef_utils.EQUIP_SLOTS["leftgauntlet"]) as core.GameObject)
 			local rightBracer = (types.Actor.getEquipment(this.object, cef_utils.EQUIP_SLOTS["rightgauntlet"]) as core.GameObject)
 			local hasLeftBracer: boolean = leftBracer ~= nil and leftBracer.recordId == "slave_bracer_left"
@@ -285,8 +310,10 @@ local CONDITIONS <const>: { { string, function(string, any) } } = {
 		end
 	},
 
-	{ "vars",
-		function(_, vars: { string: CEFRange }): boolean
+	{
+		conditionType = "vars",
+		eventDriven = false,
+		conditionEval = function(_, vars: { string: CEFRange }): boolean
 			if varsTable == nil then
 				return false
 			end
@@ -300,8 +327,10 @@ local CONDITIONS <const>: { { string, function(string, any) } } = {
 		end
 	},
 
-	{ "dynStats",
-		function(_, dynStats: { string: CEFRange }): boolean
+	{
+		conditionType = "dynStats",
+		eventDriven = false,
+		conditionEval = function(_, dynStats: { string: CEFRange }): boolean
 			for k, range in pairs(dynStats) do
 				local getStat = cef_utils.DYNAMIC_STATS[k];
 				local dynStat = getStat and getStat(this.object)
@@ -313,8 +342,10 @@ local CONDITIONS <const>: { { string, function(string, any) } } = {
 		end
 	},
 
-	{ "attributes",
-		function(_, attributes: { string: CEFRange }): boolean
+	{
+		conditionType = "attributes",
+		eventDriven = false,
+		conditionEval = function(_, attributes: { string: CEFRange }): boolean
 			for k, range in pairs(attributes) do
 				local getAttr = cef_utils.ATTRIBUTES[k]
 				local attr = getAttr and getAttr(this.object)
@@ -326,8 +357,10 @@ local CONDITIONS <const>: { { string, function(string, any) } } = {
 		end
 	},
 
-	{ "skills",
-		function(_, skills: { string: CEFRange }): boolean
+	{
+		conditionType = "skills",
+		eventDriven = false,
+		conditionEval = function(_, skills: { string: CEFRange }): boolean
 			for k, range in pairs(skills) do
 				local getSkill = cef_utils.SKILLS[k]
 				local skill = getSkill and getSkill(this.object)
@@ -339,8 +372,10 @@ local CONDITIONS <const>: { { string, function(string, any) } } = {
 		end
 	},
 
-	{ "equipment",
-		function(_, equipment: { string: boolean }): boolean
+	{
+		conditionType = "equipment",
+		eventDriven = false,
+		conditionEval = function(_, equipment: { string: boolean }): boolean
 			for k, v in pairs(equipment) do
 				local equipped = types.Actor.getEquipment(this.object, cef_utils.EQUIP_SLOTS[string.lower(k)])
 				local dataType = type(v)
@@ -355,8 +390,10 @@ local CONDITIONS <const>: { { string, function(string, any) } } = {
 		end
 	},
 
-	{ "guilds",
-		function(_, guilds: { string: CEFGuild }): boolean
+	{
+		conditionType = "guilds",
+		eventDriven = false,
+		conditionEval = function(_, guilds: { string: CEFGuild }): boolean
 			local actorGuilds: { string: boolean } = {}
 			for _, v in ipairs(types.NPC.getFactions(this.object)) do
 				actorGuilds[v] = true
@@ -380,11 +417,24 @@ local CONDITIONS <const>: { { string, function(string, any) } } = {
 	},
 }
 
-local function checkCondition(effectId: string, conditionListItem: CEFCondition, conditionEvalList: { { string, function } }): boolean
+local function checkCondition(effectId: string, conditionListItem: CEFCondition, conditionEvalList: { CEFConditionEval }, fileName?: string, conditionInd?: number): boolean
 	for _, conditionType in ipairs(conditionEvalList) do
-		local condition = (conditionListItem as { string: any })[conditionType[1]]
-		if condition ~= nil and conditionType[2](effectId, condition) == false then
-			return false
+		local condition = (conditionListItem as { string: any })[conditionType.conditionType]
+
+		if condition ~= nil then
+			if conditionInd == nil or conditionType.eventDriven == false then
+				if conditionType.conditionEval(effectId, condition) == false then
+					return false
+				end
+			else
+				if conditionState[fileName][effectId][conditionInd][conditionType.conditionType] == nil then
+					conditionState[fileName][effectId][conditionInd][conditionType.conditionType] = conditionType.conditionEval(effectId, condition) as boolean
+				end
+				
+				if conditionState[fileName][effectId][conditionInd][conditionType.conditionType] == false then
+					return false
+				end
+			end
 		end
 	end
 	return true
@@ -395,7 +445,8 @@ local function checkEffectConditions(fileName: string, effectId: string, effect:
 		distTable[fileName .. effectId] = {}
 	end
 	for conditionInd, condition in ipairs(effect.conditions) do
-		if checkCondition(effectId, condition, CONDITIONS) == true then
+		if checkCondition(effectId, condition, CONDITIONS, fileName, conditionInd) == true then
+			--this.object:sendEvent("cefEffectAdded", { fileName = fileName, effectId = effectId, conditionInd = conditionInd })
 			break
 		end
 		if conditionInd == #effect.conditions then
@@ -419,22 +470,6 @@ local function checkEffectConditions(fileName: string, effectId: string, effect:
 	if effect.items ~= nil and distTable[fileName .. effectId].items == nil then
 		applyItemDistribution(fileName, effectId, effect.items)
 	end
-end
-
-local function removeEffects(fileName: string, effectId: string, effect: CEFConfig)
-	if effectWhitelist[fileName][effectId] == nil then
-		effectWhitelist[fileName][effectId] = effect
-	end
-	if effect.effects ~= nil and distTable[fileName .. effectId].effects ~= nil then
-		removeCosmetics(fileName, effectId)
-	end
-	if effect.spells ~= nil and distTable[fileName .. effectId].spells ~= nil then
-		undoSpellDistribution(fileName, effectId)
-	end
-	if effect.items ~= nil and distTable[fileName .. effectId].items ~= nil then
-		undoItemDistribution(fileName, effectId)
-	end
-	distTable[fileName .. effectId] = nil
 end
 
 local function loopThroughEffects()
@@ -467,6 +502,22 @@ local function checkNearby(pollRange: number, func: function())
 	end
 end
 
+local function removeEffects(fileName: string, effectId: string, effect: CEFConfig)
+	if effectWhitelist[fileName][effectId] == nil then
+		effectWhitelist[fileName][effectId] = effect
+	end
+	if effect.effects ~= nil and distTable[fileName .. effectId].effects ~= nil then
+		removeCosmetics(fileName, effectId)
+	end
+	if effect.spells ~= nil and distTable[fileName .. effectId].spells ~= nil then
+		undoSpellDistribution(fileName, effectId)
+	end
+	if effect.items ~= nil and distTable[fileName .. effectId].items ~= nil then
+		undoItemDistribution(fileName, effectId)
+	end
+	distTable[fileName .. effectId] = nil
+end
+
 local function disableFramework()
 	for fileName, contents in pairs(effectWhitelist) do
 		for effectId, effect in pairs(contents as { string: CEFConfig }) do
@@ -493,11 +544,12 @@ local function buildEffectWhitelist(configData: { string: { string: CEFConfig } 
 
 	for fileName, contents in pairs(configData) do
 		for effectId, effect in pairs(contents as { string: CEFConfig }) do
-			if newWhitelist[fileName] == nil then
-				newWhitelist[fileName] = {}
-			end
 			for _, condition in ipairs(effect.conditions) do
 				if checkCondition(effectId, condition, STATIC_CONDITIONS) == true then
+					if newWhitelist[fileName] == nil then
+						newWhitelist[fileName] = {}
+						conditionState[fileName] = {}
+					end
 					if newWhitelist[fileName][effectId] == nil then
 						newWhitelist[fileName][effectId] = {
 							effects = effect.effects,
@@ -505,8 +557,10 @@ local function buildEffectWhitelist(configData: { string: { string: CEFConfig } 
 							items = effect.items,
 							conditions = {},
 						}
+						conditionState[fileName][effectId] = {}
 					end
 					table.insert(newWhitelist[fileName][effectId].conditions, condition)
+					table.insert(conditionState[fileName][effectId], {})
 				end
 			end
 		end
@@ -618,6 +672,9 @@ return {
 		end,
 		cefRemoveEffects = function()
 			clearVfx()
+		end,
+		cefEffectAdded = function()
+
 		end,
 	},
 }

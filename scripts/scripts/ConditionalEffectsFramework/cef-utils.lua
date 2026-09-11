@@ -42,6 +42,12 @@ CEFCondition = {}
 
 
 
+CEFConditionEval = {}
+
+
+
+
+
 CEFEffect = {}
 
 

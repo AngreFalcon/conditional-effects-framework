@@ -42,6 +42,12 @@ global interface CEFCondition
 	effects: { string: { string: boolean } }
 end
 
+global interface CEFConditionEval
+	conditionType: string
+	eventDriven: boolean
+	conditionEval: function(string, any): boolean
+end
+
 global interface CEFEffect
 	mesh: string
 	node: string

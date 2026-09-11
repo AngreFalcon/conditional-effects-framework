@@ -15,6 +15,7 @@ local configSettings = storage.globalSection("SettingsConditionalEffectsFramewor
 local cefConfigSettings = {}
 local effectWhitelist
 local distTable = {}
+local conditionState = {}
 local cefBuildWhitelistThread
 
 
@@ -173,218 +174,267 @@ local function undoItemDistribution(fileName, effectId)
 end
 
 local STATIC_CONDITIONS = {
-   { "isMale",
-   function(_, isMale)
-      return types.NPC.record(this.object).isMale == isMale
-   end,
+   {
+      conditionType = "isMale",
+      eventDriven = false,
+      conditionEval = function(_, isMale)
+         return types.NPC.record(this.object).isMale == isMale
+      end,
    },
 
-   { "isPlayer",
-   function(_, isPlayer)
-      return types.Player.objectIsInstance(this.object) == isPlayer
-   end,
+   {
+      conditionType = "isPlayer",
+      eventDriven = false,
+      conditionEval = function(_, isPlayer)
+         return types.Player.objectIsInstance(this.object) == isPlayer
+      end,
    },
 
-   { "isBeastRace",
-   function(_, isBeastRace)
-      local race = types.NPC.record(this.object).id
-      return types.NPC.races.record(race).isBeast == isBeastRace
-   end,
+   {
+      conditionType = "isBeastRace",
+      eventDriven = false,
+      conditionEval = function(_, isBeastRace)
+         local race = types.NPC.record(this.object).id
+         return types.NPC.races.record(race).isBeast == isBeastRace
+      end,
    },
 
-   { "charId",
-   function(_, condId)
-      local charId = types.NPC.record(this.object).id
-      for i = 1, #condId do
-         if charId == condId[i] then
-            return true
+   {
+      conditionType = "charId",
+      eventDriven = false,
+      conditionEval = function(_, condId)
+         local charId = types.NPC.record(this.object).id
+         for i = 1, #condId do
+            if charId == condId[i] then
+               return true
+            end
          end
-      end
-      return false
-   end,
-   },
-
-   { "race",
-   function(_, race)
-      local actorRace = types.NPC.record(this.object).race
-      for i = 1, #race do
-         if actorRace == race[i] then
-            return true
-         end
-      end
-      return false
-   end,
-   },
-
-   { "classes",
-   function(_, classes)
-      local class = types.NPC.record(this.object).class
-      return classes[string.lower(class)]
-   end,
-   },
-
-   { "getRandom",
-   function(effectId, chance)
-      if chance == 1 then
-         return true
-      elseif chance < 1 then
          return false
-      end
-      local seed = 0
-      local seedString = this.object.id .. effectId
-      for i = 1, #seedString do
-         seed = seed + seedString:byte(i)
-      end
-      math.randomseed(seed)
-      local random = math.random(1, math.floor(chance))
-      return math.floor((chance / 2) + 0.5) == random
-   end,
+      end,
+   },
+
+   {
+      conditionType = "race",
+      eventDriven = false,
+      conditionEval = function(_, race)
+         local actorRace = types.NPC.record(this.object).race
+         for i = 1, #race do
+            if actorRace == race[i] then
+               return true
+            end
+         end
+         return false
+      end,
+   },
+
+   {
+      conditionType = "classes",
+      eventDriven = false,
+      conditionEval = function(_, classes)
+         local class = types.NPC.record(this.object).class
+         return classes[string.lower(class)]
+      end,
+   },
+
+   {
+      conditionType = "getRandom",
+      eventDriven = false,
+      conditionEval = function(effectId, chance)
+         if chance == 1 then
+            return true
+         elseif chance < 1 then
+            return false
+         end
+         local seed = 0
+         local seedString = this.object.id .. effectId
+         for i = 1, #seedString do
+            seed = seed + seedString:byte(i)
+         end
+         math.randomseed(seed)
+         local random = math.random(1, math.floor(chance))
+         return math.floor((chance / 2) + 0.5) == random
+      end,
    },
 }
 
 local CONDITIONS = {
-   { "level",
-   function(_, level)
-      local actorLevel = types.Actor.stats.level(this.object)
-      return cef_utils.compareRange(actorLevel.current, level)
-   end,
+   {
+      conditionType = "level",
+      eventDriven = false,
+      conditionEval = function(_, level)
+         local actorLevel = types.Actor.stats.level(this.object)
+         return cef_utils.compareRange(actorLevel.current, level)
+      end,
    },
 
-   { "isWerewolf",
-   function(_, isWerewolf)
-      return types.NPC.isWerewolf(this.object) == isWerewolf
-   end,
+   {
+      conditionType = "isWerewolf",
+      eventDriven = false,
+      conditionEval = function(_, isWerewolf)
+         return types.NPC.isWerewolf(this.object) == isWerewolf
+      end,
    },
 
-   { "isDead",
-   function(_, isDead)
-      return types.Actor.isDead(this.object) == isDead
-   end,
+   {
+      conditionType = "isDead",
+      eventDriven = false,
+      conditionEval = function(_, isDead)
+         return types.Actor.isDead(this.object) == isDead
+      end,
    },
 
-   { "hasEffects",
-   function(_, fileEffects)
-      for fileName, effects in pairs(fileEffects) do
-         for effectId, value in pairs(effects) do
-            if (distTable[fileName .. effectId] == nil) == value then
+   {
+      conditionType = "hasEffects",
+      eventDriven = true,
+      conditionEval = function(_, fileEffects)
+         for fileName, effects in pairs(fileEffects) do
+            for effectId, value in pairs(effects) do
+               if (distTable[fileName .. effectId] == nil) == value then
+                  return false
+               end
+            end
+         end
+         return true
+      end,
+   },
+
+   {
+      conditionType = "isSlave",
+      eventDriven = false,
+      conditionEval = function(_, isSlave)
+         local leftBracer = (types.Actor.getEquipment(this.object, cef_utils.EQUIP_SLOTS["leftgauntlet"]))
+         local rightBracer = (types.Actor.getEquipment(this.object, cef_utils.EQUIP_SLOTS["rightgauntlet"]))
+         local hasLeftBracer = leftBracer ~= nil and leftBracer.recordId == "slave_bracer_left"
+         local hasRightBracer = rightBracer ~= nil and rightBracer.recordId == "slave_bracer_right"
+         return (types.NPC.record(this.object).class == "slave" and (hasRightBracer or hasLeftBracer)) == isSlave
+      end,
+   },
+
+   {
+      conditionType = "vars",
+      eventDriven = false,
+      conditionEval = function(_, vars)
+         if varsTable == nil then
+            return false
+         end
+         for k, range in pairs(vars) do
+            local value = varsTable:get(k)
+            if value == nil or cef_utils.compareRange(value, range, range.maxValue) == false then
                return false
             end
          end
-      end
-      return true
-   end,
+         return true
+      end,
    },
 
-   { "isSlave",
-   function(_, isSlave)
-      local leftBracer = (types.Actor.getEquipment(this.object, cef_utils.EQUIP_SLOTS["leftgauntlet"]))
-      local rightBracer = (types.Actor.getEquipment(this.object, cef_utils.EQUIP_SLOTS["rightgauntlet"]))
-      local hasLeftBracer = leftBracer ~= nil and leftBracer.recordId == "slave_bracer_left"
-      local hasRightBracer = rightBracer ~= nil and rightBracer.recordId == "slave_bracer_right"
-      return (types.NPC.record(this.object).class == "slave" and (hasRightBracer or hasLeftBracer)) == isSlave
-   end,
-   },
-
-   { "vars",
-   function(_, vars)
-      if varsTable == nil then
-         return false
-      end
-      for k, range in pairs(vars) do
-         local value = varsTable:get(k)
-         if value == nil or cef_utils.compareRange(value, range, range.maxValue) == false then
-            return false
-         end
-      end
-      return true
-   end,
-   },
-
-   { "dynStats",
-   function(_, dynStats)
-      for k, range in pairs(dynStats) do
-         local getStat = cef_utils.DYNAMIC_STATS[k];
-         local dynStat = getStat and getStat(this.object)
-         if dynStat == nil or cef_utils.compareRange(dynStat.current, range, dynStat.base + dynStat.modifier) == false then
-            return false
-         end
-      end
-      return true
-   end,
-   },
-
-   { "attributes",
-   function(_, attributes)
-      for k, range in pairs(attributes) do
-         local getAttr = cef_utils.ATTRIBUTES[k]
-         local attr = getAttr and getAttr(this.object)
-         if attr == nil or cef_utils.compareRange(attr.modified, range, attr.base + attr.modifier) == false then
-            return false
-         end
-      end
-      return true
-   end,
-   },
-
-   { "skills",
-   function(_, skills)
-      for k, range in pairs(skills) do
-         local getSkill = cef_utils.SKILLS[k]
-         local skill = getSkill and getSkill(this.object)
-         if skill == nil or cef_utils.compareRange(skill.modified, range, skill.base + skill.modifier) == false then
-            return false
-         end
-      end
-      return true
-   end,
-   },
-
-   { "equipment",
-   function(_, equipment)
-      for k, v in pairs(equipment) do
-         local equipped = types.Actor.getEquipment(this.object, cef_utils.EQUIP_SLOTS[string.lower(k)])
-         local dataType = type(v)
-         if (dataType == "boolean" and v == (equipped == nil)) or
-            (dataType ~= "boolean" and equipped == nil) or
-            (dataType == "string" and (equipped).recordId ~= string.lower(v)) or
-            (dataType == "table" and cef_utils.tableHasElement(v, (equipped).recordId) == false) then
-            return false
-         end
-      end
-      return true
-   end,
-   },
-
-   { "guilds",
-   function(_, guilds)
-      local actorGuilds = {}
-      for _, v in ipairs(types.NPC.getFactions(this.object)) do
-         actorGuilds[v] = true
-      end
-      for k, v in pairs(guilds) do
-         if actorGuilds[k] == nil then
-            return false
-         else
-            local rank = types.NPC.getFactionRank(this.object, k)
-            if v.rank and cef_utils.compareRange(rank, v.rank) == false then
-               return false
-            end
-            local reputation = types.NPC.getFactionReputation(this.object, k)
-            if v.reputation and cef_utils.compareRange(reputation, v.reputation) == false then
+   {
+      conditionType = "dynStats",
+      eventDriven = false,
+      conditionEval = function(_, dynStats)
+         for k, range in pairs(dynStats) do
+            local getStat = cef_utils.DYNAMIC_STATS[k];
+            local dynStat = getStat and getStat(this.object)
+            if dynStat == nil or cef_utils.compareRange(dynStat.current, range, dynStat.base + dynStat.modifier) == false then
                return false
             end
          end
-      end
-      return true
-   end,
+         return true
+      end,
+   },
+
+   {
+      conditionType = "attributes",
+      eventDriven = false,
+      conditionEval = function(_, attributes)
+         for k, range in pairs(attributes) do
+            local getAttr = cef_utils.ATTRIBUTES[k]
+            local attr = getAttr and getAttr(this.object)
+            if attr == nil or cef_utils.compareRange(attr.modified, range, attr.base + attr.modifier) == false then
+               return false
+            end
+         end
+         return true
+      end,
+   },
+
+   {
+      conditionType = "skills",
+      eventDriven = false,
+      conditionEval = function(_, skills)
+         for k, range in pairs(skills) do
+            local getSkill = cef_utils.SKILLS[k]
+            local skill = getSkill and getSkill(this.object)
+            if skill == nil or cef_utils.compareRange(skill.modified, range, skill.base + skill.modifier) == false then
+               return false
+            end
+         end
+         return true
+      end,
+   },
+
+   {
+      conditionType = "equipment",
+      eventDriven = false,
+      conditionEval = function(_, equipment)
+         for k, v in pairs(equipment) do
+            local equipped = types.Actor.getEquipment(this.object, cef_utils.EQUIP_SLOTS[string.lower(k)])
+            local dataType = type(v)
+            if (dataType == "boolean" and v == (equipped == nil)) or
+               (dataType ~= "boolean" and equipped == nil) or
+               (dataType == "string" and (equipped).recordId ~= string.lower(v)) or
+               (dataType == "table" and cef_utils.tableHasElement(v, (equipped).recordId) == false) then
+               return false
+            end
+         end
+         return true
+      end,
+   },
+
+   {
+      conditionType = "guilds",
+      eventDriven = false,
+      conditionEval = function(_, guilds)
+         local actorGuilds = {}
+         for _, v in ipairs(types.NPC.getFactions(this.object)) do
+            actorGuilds[v] = true
+         end
+         for k, v in pairs(guilds) do
+            if actorGuilds[k] == nil then
+               return false
+            else
+               local rank = types.NPC.getFactionRank(this.object, k)
+               if v.rank and cef_utils.compareRange(rank, v.rank) == false then
+                  return false
+               end
+               local reputation = types.NPC.getFactionReputation(this.object, k)
+               if v.reputation and cef_utils.compareRange(reputation, v.reputation) == false then
+                  return false
+               end
+            end
+         end
+         return true
+      end,
    },
 }
 
-local function checkCondition(effectId, conditionListItem, conditionEvalList)
+local function checkCondition(effectId, conditionListItem, conditionEvalList, fileName, conditionInd)
    for _, conditionType in ipairs(conditionEvalList) do
-      local condition = (conditionListItem)[conditionType[1]]
-      if condition ~= nil and conditionType[2](effectId, condition) == false then
-         return false
+      local condition = (conditionListItem)[conditionType.conditionType]
+
+      if condition ~= nil then
+         if conditionInd == nil or conditionType.eventDriven == false then
+            if conditionType.conditionEval(effectId, condition) == false then
+               return false
+            end
+         else
+            if conditionState[fileName][effectId][conditionInd][conditionType.conditionType] == nil then
+               conditionState[fileName][effectId][conditionInd][conditionType.conditionType] = conditionType.conditionEval(effectId, condition)
+            end
+
+            if conditionState[fileName][effectId][conditionInd][conditionType.conditionType] == false then
+               return false
+            end
+         end
       end
    end
    return true
@@ -395,7 +445,8 @@ local function checkEffectConditions(fileName, effectId, effect)
       distTable[fileName .. effectId] = {}
    end
    for conditionInd, condition in ipairs(effect.conditions) do
-      if checkCondition(effectId, condition, CONDITIONS) == true then
+      if checkCondition(effectId, condition, CONDITIONS, fileName, conditionInd) == true then
+
          break
       end
       if conditionInd == #effect.conditions then
@@ -419,22 +470,6 @@ local function checkEffectConditions(fileName, effectId, effect)
    if effect.items ~= nil and distTable[fileName .. effectId].items == nil then
       applyItemDistribution(fileName, effectId, effect.items)
    end
-end
-
-local function removeEffects(fileName, effectId, effect)
-   if effectWhitelist[fileName][effectId] == nil then
-      effectWhitelist[fileName][effectId] = effect
-   end
-   if effect.effects ~= nil and distTable[fileName .. effectId].effects ~= nil then
-      removeCosmetics(fileName, effectId)
-   end
-   if effect.spells ~= nil and distTable[fileName .. effectId].spells ~= nil then
-      undoSpellDistribution(fileName, effectId)
-   end
-   if effect.items ~= nil and distTable[fileName .. effectId].items ~= nil then
-      undoItemDistribution(fileName, effectId)
-   end
-   distTable[fileName .. effectId] = nil
 end
 
 local function loopThroughEffects()
@@ -467,6 +502,22 @@ local function checkNearby(pollRange, func)
    end
 end
 
+local function removeEffects(fileName, effectId, effect)
+   if effectWhitelist[fileName][effectId] == nil then
+      effectWhitelist[fileName][effectId] = effect
+   end
+   if effect.effects ~= nil and distTable[fileName .. effectId].effects ~= nil then
+      removeCosmetics(fileName, effectId)
+   end
+   if effect.spells ~= nil and distTable[fileName .. effectId].spells ~= nil then
+      undoSpellDistribution(fileName, effectId)
+   end
+   if effect.items ~= nil and distTable[fileName .. effectId].items ~= nil then
+      undoItemDistribution(fileName, effectId)
+   end
+   distTable[fileName .. effectId] = nil
+end
+
 local function disableFramework()
    for fileName, contents in pairs(effectWhitelist) do
       for effectId, effect in pairs(contents) do
@@ -493,11 +544,12 @@ local function buildEffectWhitelist(configData)
 
    for fileName, contents in pairs(configData) do
       for effectId, effect in pairs(contents) do
-         if newWhitelist[fileName] == nil then
-            newWhitelist[fileName] = {}
-         end
          for _, condition in ipairs(effect.conditions) do
             if checkCondition(effectId, condition, STATIC_CONDITIONS) == true then
+               if newWhitelist[fileName] == nil then
+                  newWhitelist[fileName] = {}
+                  conditionState[fileName] = {}
+               end
                if newWhitelist[fileName][effectId] == nil then
                   newWhitelist[fileName][effectId] = {
                      effects = effect.effects,
@@ -505,8 +557,10 @@ local function buildEffectWhitelist(configData)
                      items = effect.items,
                      conditions = {},
                   }
+                  conditionState[fileName][effectId] = {}
                end
                table.insert(newWhitelist[fileName][effectId].conditions, condition)
+               table.insert(conditionState[fileName][effectId], {})
             end
          end
       end
@@ -618,6 +672,9 @@ return {
       end,
       cefRemoveEffects = function()
          clearVfx()
+      end,
+      cefEffectAdded = function()
+
       end,
    },
 }
