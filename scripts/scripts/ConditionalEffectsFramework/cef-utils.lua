@@ -217,6 +217,20 @@ local MENU_MODES = {
    ChargenClassReview = "ChargenClassReview",
 }
 
+local CONDITION_ENUM = {
+   level = 1,
+   isWerewolf = 2,
+   isDead = 3,
+   hasEffects = 4,
+   isSlave = 5,
+   vars = 6,
+   dynStats = 7,
+   attributes = 8,
+   skills = 9,
+   equipment = 10,
+   guilds = 11,
+}
+
 
 
 local function tableHasElement(array, element)
@@ -280,6 +294,7 @@ return {
    EQUIP_SLOTS = EQUIP_SLOTS,
    ITEM_INTERFACES = ITEM_INTERFACES,
    MENU_MODES = MENU_MODES,
+   CONDITION_ENUM = CONDITION_ENUM,
 
 
    tableHasElement = tableHasElement,

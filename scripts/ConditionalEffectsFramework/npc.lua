@@ -6,6 +6,7 @@ local storage = require('openmw.storage')
 local nearby = require('openmw.nearby')
 local async = require('openmw.async')
 local util = require('openmw.util')
+local vfs = require('openmw.vfs')
 
 local cef_utils = require('scripts.ConditionalEffectsFramework.cef-utils')
 
@@ -277,7 +278,7 @@ local CONDITIONS = {
 
    {
       conditionType = "isDead",
-      eventDriven = false,
+      eventDriven = true,
       conditionEval = function(_, isDead)
          return types.Actor.isDead(this.object) == isDead
       end,
@@ -300,7 +301,7 @@ local CONDITIONS = {
 
    {
       conditionType = "isSlave",
-      eventDriven = false,
+      eventDriven = vfs.fileExists("scripts/EquipmentTracker/tracked.lua"),
       conditionEval = function(_, isSlave)
          local leftBracer = (types.Actor.getEquipment(this.object, cef_utils.EQUIP_SLOTS["leftgauntlet"]))
          local rightBracer = (types.Actor.getEquipment(this.object, cef_utils.EQUIP_SLOTS["rightgauntlet"]))
@@ -312,7 +313,7 @@ local CONDITIONS = {
 
    {
       conditionType = "vars",
-      eventDriven = false,
+      eventDriven = true,
       conditionEval = function(_, vars)
          if varsTable == nil then
             return false
@@ -374,7 +375,7 @@ local CONDITIONS = {
 
    {
       conditionType = "equipment",
-      eventDriven = false,
+      eventDriven = vfs.fileExists("scripts/EquipmentTracker/tracked.lua"),
       conditionEval = function(_, equipment)
          for k, v in pairs(equipment) do
             local equipped = types.Actor.getEquipment(this.object, cef_utils.EQUIP_SLOTS[string.lower(k)])
@@ -498,6 +499,21 @@ local function checkNearby(pollRange, func)
          end),
          player.position, (this).position, { ignore = player })
 
+      end
+   end
+end
+
+local function updateConditionState(conditionType)
+   if effectWhitelist == nil then
+      return
+   end
+   for fileName, contents in pairs(effectWhitelist) do
+      for effectId, effect in pairs(contents) do
+         for conditionInd, condition in ipairs(effect.conditions) do
+            if (condition)[conditionType] ~= nil then
+               conditionState[fileName][effectId][conditionInd][conditionType] = CONDITIONS[cef_utils.CONDITION_ENUM[conditionType]].conditionEval(effectId, (condition)[conditionType])
+            end
+         end
       end
    end
 end
@@ -644,6 +660,9 @@ return {
       end,
       onActive = function()
          varsTable = storage.globalSection(this.object.id)
+         varsTable:subscribe(async:callback(function()
+            updateConditionState("vars")
+         end))
       end,
       onInactive = function()
          if cefBuildWhitelistThread ~= nil then
@@ -656,6 +675,9 @@ return {
       end,
    },
    eventHandlers = {
+      Died = function()
+         updateConditionState("isDead")
+      end,
       cefUpdate = function(data)
          local cefSettings = data.cefSettings
          if effectWhitelist ~= nil then
@@ -674,7 +696,15 @@ return {
          clearVfx()
       end,
       cefEffectAdded = function()
-
+         updateConditionState("hasEffects")
+      end,
+      EquipmentTracker_Equipped = function()
+         updateConditionState("isSlave")
+         updateConditionState("equipment")
+      end,
+      EquipmentTracker_Unequipped = function()
+         updateConditionState("isSlave")
+         updateConditionState("equipment")
       end,
    },
 }

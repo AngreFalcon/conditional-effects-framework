@@ -3,3 +3,5 @@ GLOBAL: scripts/ConditionalEffectsFramework/settings.lua
 PLAYER, NPC: scripts/ConditionalEffectsFramework/npc.lua
 PLAYER: scripts/ConditionalEffectsFramework/settings-page.lua
 PLAYER: scripts/ConditionalEffectsFramework/player.lua
+
+CUSTOM: scripts/EquipmentTracker/tracked.lua

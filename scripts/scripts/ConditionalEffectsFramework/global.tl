@@ -34,8 +34,10 @@ local function syncMWVars(actor: core.GameObject) -- Get the current state of al
 		local localScript: world.MWScript = world.mwscript.getLocalScript(actor, nil)
 		if localScript ~= nil then
             local varTable = storage.globalSection(actor.id)
-            for k, v in pairs((localScript.variables as {string: number})) do
-                varTable:set(k, v)
+            for k, v in pairs((localScript.variables as { string: number })) do
+				if varTable:asTable()[k] ~= v then
+                	varTable:set(k, v)
+				end
 			end
 		end
 	end
@@ -235,6 +237,9 @@ return {
 			handleActiveActor(player)
 		end,
       	onActorActive = function(actor: core.GameObject)
+			if vfs.fileExists("scripts/EquipmentTracker/tracked.lua") == true then
+				actor:addScript("scripts/EquipmentTracker/tracked.lua", nil)
+			end
 			handleActiveActor(actor)
       	end,
 		onActivate = function(object: core.GameObject, actor: core.GameObject)

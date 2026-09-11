@@ -35,7 +35,9 @@ local function syncMWVars(actor)
       if localScript ~= nil then
          local varTable = storage.globalSection(actor.id)
          for k, v in pairs((localScript.variables)) do
-            varTable:set(k, v)
+            if varTable:asTable()[k] ~= v then
+               varTable:set(k, v)
+            end
          end
       end
    end
@@ -235,6 +237,9 @@ return {
          handleActiveActor(player)
       end,
       onActorActive = function(actor)
+         if vfs.fileExists("scripts/EquipmentTracker/tracked.lua") == true then
+            actor:addScript("scripts/EquipmentTracker/tracked.lua", nil)
+         end
          handleActiveActor(actor)
       end,
       onActivate = function(object, actor)
