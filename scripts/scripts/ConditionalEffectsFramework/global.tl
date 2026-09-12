@@ -9,6 +9,8 @@ local async = require('openmw.async')
 local cef_utils = require('scripts.ConditionalEffectsFramework.cef-utils')
 
 -- variables
+local equipmentTrackerScript <const>: string = "scripts/EquipmentTracker/tracked.lua"
+
 local settings: storage.StorageSection = storage.globalSection("SettingsGeneralConditionalEffectsFramework")
 local cefSettings: CEFSettings = {
 		cefEnable = true,
@@ -96,6 +98,9 @@ end
 local function handleActiveActor(actor: core.GameObject)
 	if types.NPC.objectIsInstance(actor) == false and types.Player.objectIsInstance(actor) == false then
 		return
+	end
+	if vfs.fileExists(equipmentTrackerScript) == true and actor:hasScript(equipmentTrackerScript) == false then
+		actor:addScript(equipmentTrackerScript, nil)
 	end
 	storage.globalSection(actor.id):setLifeTime(storage.LIFE_TIME.GameSession as storage.LifeTime)
 	async:newUnsavableSimulationTimer(cefSettings.cefMWVarsUpdateDelay, function()
@@ -237,9 +242,6 @@ return {
 			handleActiveActor(player)
 		end,
       	onActorActive = function(actor: core.GameObject)
-			if vfs.fileExists("scripts/EquipmentTracker/tracked.lua") == true then
-				actor:addScript("scripts/EquipmentTracker/tracked.lua", nil)
-			end
 			handleActiveActor(actor)
       	end,
 		onActivate = function(object: core.GameObject, actor: core.GameObject)

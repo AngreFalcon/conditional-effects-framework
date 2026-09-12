@@ -18,6 +18,7 @@ local effectWhitelist
 local distTable = {}
 local conditionState = {}
 local cefBuildWhitelistThread
+local equipmentTable = nil
 
 
 
@@ -376,15 +377,34 @@ local CONDITIONS = {
    {
       conditionType = "equipment",
       eventDriven = vfs.fileExists("scripts/EquipmentTracker/tracked.lua"),
-      conditionEval = function(_, equipment)
-         for k, v in pairs(equipment) do
-            local equipped = types.Actor.getEquipment(this.object, cef_utils.EQUIP_SLOTS[string.lower(k)])
-            local dataType = type(v)
-            if (dataType == "boolean" and v == (equipped == nil)) or
+      conditionEval = function(_, equipment, slot)
+         if equipmentTable == nil then
+            equipmentTable = (types.Actor.getEquipment)(this.object)
+         end
+
+         local func = function(itemSlot, condition)
+            local equipped = equipmentTable[(cef_utils.EQUIP_SLOTS[string.lower(itemSlot)])]
+            local dataType = type(condition)
+            if (dataType == "boolean" and condition == (equipped == nil)) or
                (dataType ~= "boolean" and equipped == nil) or
-               (dataType == "string" and (equipped).recordId ~= string.lower(v)) or
-               (dataType == "table" and cef_utils.tableHasElement(v, (equipped).recordId) == false) then
+               (dataType == "string" and (equipped).recordId ~= string.lower(condition)) or
+               (dataType == "table" and cef_utils.tableHasElement(condition, (equipped).recordId) == false) then
                return false
+            end
+         end
+
+         if slot == nil then
+            for k, condition in pairs(equipment) do
+               if func(k, condition) == false then
+                  return false
+               end
+            end
+         else
+            local condition = equipment[string.lower(slot)]
+            if condition ~= nil then
+               if func(slot, condition) == false then
+                  return false
+               end
             end
          end
          return true
@@ -424,12 +444,12 @@ local function checkCondition(effectId, conditionListItem, conditionEvalList, fi
 
       if condition ~= nil then
          if conditionInd == nil or conditionType.eventDriven == false then
-            if conditionType.conditionEval(effectId, condition) == false then
+            if conditionType.conditionEval(effectId, condition, nil) == false then
                return false
             end
          else
             if conditionState[fileName][effectId][conditionInd][conditionType.conditionType] == nil then
-               conditionState[fileName][effectId][conditionInd][conditionType.conditionType] = conditionType.conditionEval(effectId, condition)
+               conditionState[fileName][effectId][conditionInd][conditionType.conditionType] = conditionType.conditionEval(effectId, condition, nil)
             end
 
             if conditionState[fileName][effectId][conditionInd][conditionType.conditionType] == false then
@@ -503,7 +523,7 @@ local function checkNearby(pollRange, func)
    end
 end
 
-local function updateConditionState(conditionType)
+local function updateConditionState(conditionType, data)
    if effectWhitelist == nil then
       return
    end
@@ -511,7 +531,9 @@ local function updateConditionState(conditionType)
       for effectId, effect in pairs(contents) do
          for conditionInd, condition in ipairs(effect.conditions) do
             if (condition)[conditionType] ~= nil then
-               conditionState[fileName][effectId][conditionInd][conditionType] = CONDITIONS[cef_utils.CONDITION_ENUM[conditionType]].conditionEval(effectId, (condition)[conditionType])
+               if data == nil or (condition)[conditionType][data] ~= nil then
+                  conditionState[fileName][effectId][conditionInd][conditionType] = CONDITIONS[cef_utils.CONDITION_ENUM[conditionType]].conditionEval(effectId, (condition)[conditionType], data)
+               end
             end
          end
       end
@@ -698,13 +720,33 @@ return {
       cefEffectAdded = function()
          updateConditionState("hasEffects")
       end,
-      EquipmentTracker_Equipped = function()
-         updateConditionState("isSlave")
-         updateConditionState("equipment")
+      EquipmentTracker_Equipped = function(data)
+         equipmentTable = (types.Actor.getEquipment)(this.object)
+         local itemSlot = nil
+         if data.object.type == types.Armor then
+            itemSlot = cef_utils.ARMOR_SLOTS[(data.object.type).record(data.object).type]
+         elseif data.object.type == types.Clothing then
+            itemSlot = cef_utils.CLOTHING_SLOTS[(data.object.type).record(data.object).type]
+         end
+
+         if itemSlot == "leftgauntlet" or itemSlot == "rightgauntlet" then
+            updateConditionState("isSlave")
+         end
+         updateConditionState("equipment", itemSlot)
       end,
-      EquipmentTracker_Unequipped = function()
-         updateConditionState("isSlave")
-         updateConditionState("equipment")
+      EquipmentTracker_Unequipped = function(data)
+         equipmentTable = (types.Actor.getEquipment)(this.object)
+         local itemSlot = nil
+         if data.object.type == types.Armor then
+            itemSlot = cef_utils.ARMOR_SLOTS[(data.object.type).record(data.object).type]
+         elseif data.object.type == types.Clothing then
+            itemSlot = cef_utils.CLOTHING_SLOTS[(data.object.type).record(data.object).type]
+         end
+
+         if itemSlot == "leftgauntlet" or itemSlot == "rightgauntlet" then
+            updateConditionState("isSlave")
+         end
+         updateConditionState("equipment", itemSlot)
       end,
    },
 }

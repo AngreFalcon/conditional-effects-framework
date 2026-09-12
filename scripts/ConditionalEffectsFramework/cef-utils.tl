@@ -45,7 +45,7 @@ end
 global interface CEFConditionEval
 	conditionType: string
 	eventDriven: boolean
-	conditionEval: function(string, any): boolean
+	conditionEval: function(string, any, any): boolean
 end
 
 global interface CEFEffect
@@ -165,6 +165,33 @@ local EQUIP_SLOTS <const>: { string: number } = {
 	["carriedright"] = 16,
 	["carriedleft"] = 17,
 	["ammunition"] = 18,
+}
+
+local ARMOR_SLOTS <const>: { number: string } = {
+	[0] = "helmet",
+	[1] = "cuirass",
+	[2] = "lpauldron",
+	[3] = "rpauldron",
+	[4] = "greaves",
+	[5] = "boots",
+	[6] = "lgauntlet",
+	[7] = "rgauntlet",
+	[8] = "shield",
+	[9] = "lbracer",
+	[10] = "rbracer",
+}
+
+local CLOTHING_SLOTS <const>: { number: string } = {
+	[0] = "pants",
+	[1] = "shoes",
+	[2] = "shirt",
+	[3] = "belt",
+	[4] = "robe",
+	[5] = "rglove",
+	[6] = "lglove",
+	[7] = "skirt",
+	[8] = "ring",
+	[9] = "amulet",
 }
 
 local ITEM_INTERFACES <const>: { any } = {
@@ -292,6 +319,8 @@ return {
 	ATTRIBUTES = ATTRIBUTES,
 	SKILLS = SKILLS,
 	EQUIP_SLOTS = EQUIP_SLOTS,
+	ARMOR_SLOTS = ARMOR_SLOTS,
+	CLOTHING_SLOTS = CLOTHING_SLOTS,
 	ITEM_INTERFACES = ITEM_INTERFACES,
 	MENU_MODES = MENU_MODES,
 	CONDITION_ENUM = CONDITION_ENUM,
