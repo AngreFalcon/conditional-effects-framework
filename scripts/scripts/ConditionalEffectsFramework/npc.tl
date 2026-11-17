@@ -649,6 +649,30 @@ local function configSettingsUpdated(sectionName: string, key?: string)
 	end
 end
 
+local function handleEquipEvent(data: { string: any })
+	equipmentTable = (types.Actor.getEquipment as function(core.GameObject))(this.object) as types.EquipmentTable
+	local item: core.GameObject = data.object as core.GameObject
+	local itemSlot: string
+	if data.slot == nil then
+		if item.type == types.Armor then
+			itemSlot = cef_utils.ARMOR_SLOTS[(item.type as types.Armor).record(item).type as integer]
+		elseif item.type == types.Clothing then
+			itemSlot = cef_utils.CLOTHING_SLOTS[(item.type as types.Clothing).record(item).type as integer]
+		end
+	else
+		for slot, slotNum in pairs(cef_utils.EQUIP_SLOTS as { string: number }) do
+			if data.slot == slotNum then
+				itemSlot = slot as string
+				break
+			end
+		end
+	end
+	if itemSlot == "leftgauntlet" or itemSlot == "rightgauntlet" then
+		updateConditionState("isSlave")
+	end
+	updateConditionState("equipment", itemSlot)
+end
+
 local function loadConfigSettings()
 	local sectionName: string = "SettingsConditionalEffectsFrameworkConfigs"
 	if configSettings == nil then
@@ -720,33 +744,7 @@ return {
 		cefEffectAdded = function()
 			updateConditionState("hasEffects")
 		end,
-		EquipmentTracker_Equipped = function(data: { string: core.GameObject })
-			equipmentTable = (types.Actor.getEquipment as function(core.GameObject))(this.object) as types.EquipmentTable
-			local itemSlot: string = nil
-			if data.object.type == types.Armor then
-				itemSlot = cef_utils.ARMOR_SLOTS[(data.object.type as types.Armor).record(data.object).type as integer]
-			elseif data.object.type == types.Clothing then
-				itemSlot = cef_utils.CLOTHING_SLOTS[(data.object.type as types.Clothing).record(data.object).type as integer]
-			end
-
-			if itemSlot == "leftgauntlet" or itemSlot == "rightgauntlet" then
-				updateConditionState("isSlave")
-			end
-			updateConditionState("equipment", itemSlot)
-		end,
-		EquipmentTracker_Unequipped = function(data: { string: core.GameObject })
-			equipmentTable = (types.Actor.getEquipment as function(core.GameObject))(this.object) as types.EquipmentTable
-			local itemSlot: string = nil
-			if data.object.type == types.Armor then
-				itemSlot = cef_utils.ARMOR_SLOTS[(data.object.type as types.Armor).record(data.object).type as integer]
-			elseif data.object.type == types.Clothing then
-				itemSlot = cef_utils.CLOTHING_SLOTS[(data.object.type as types.Clothing).record(data.object).type as integer]
-			end
-
-			if itemSlot == "leftgauntlet" or itemSlot == "rightgauntlet" then
-				updateConditionState("isSlave")
-			end
-			updateConditionState("equipment", itemSlot)
-		end,
+		EquipmentTracker_Equipped = handleEquipEvent,
+		EquipmentTracker_Unequipped = handleEquipEvent,
 	},
 }

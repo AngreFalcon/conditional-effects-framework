@@ -229,7 +229,6 @@ end
 local function cefInit()
    if #world.players == 1 then
       loadSettings()
-      loadConfigFiles()
       validateEffectIDs()
    end
 end
@@ -237,6 +236,9 @@ end
 
 return {
    engineHandlers = {
+      onInit = function()
+         loadConfigFiles()
+      end,
       onPlayerAdded = function(player)
          cefInit()
          handleActiveActor(player)
